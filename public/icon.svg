@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="OBD Monitor">
+  <rect width="512" height="512" rx="96" fill="#0b0f14" />
+  <circle cx="256" cy="256" r="168" fill="none" stroke="#1b2430" stroke-width="28" />
+  <path d="M256 256 L256 108" fill="none" stroke="#1b2430" stroke-width="20" opacity="0" />
+  <!-- gauge arc -->
+  <path d="M124 330 A160 160 0 1 1 388 330" fill="none" stroke="#2dd4bf" stroke-width="24"
+    stroke-linecap="round" />
+  <!-- needle -->
+  <g transform="rotate(38 256 256)">
+    <line x1="256" y1="256" x2="256" y2="132" stroke="#f4f7fb" stroke-width="16"
+      stroke-linecap="round" />
+  </g>
+  <circle cx="256" cy="256" r="26" fill="#f4f7fb" />
+  <circle cx="256" cy="256" r="12" fill="#0b0f14" />
+</svg>
