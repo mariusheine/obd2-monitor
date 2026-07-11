@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
-import { SYSTEM_LABELS, type Dtc } from '@/obd/dtc/decode'
+import { dtcDescription, dtcSystemLabel } from '@/i18n/labels'
+import type { Dtc } from '@/obd/dtc/decode'
 import { useConnectionStore } from '@/stores/connection'
 import { useDtcStore } from '@/stores/dtc'
 
 const conn = useConnectionStore()
 const dtc = useDtcStore()
+const { t, locale } = useI18n({ useScope: 'global' })
 const { status, elm } = storeToRefs(conn)
 const { stored, pending, permanent, loading, clearing, error, hasRead, lastReadAt, total } =
   storeToRefs(dtc)
@@ -24,21 +27,21 @@ interface Section {
 const sections = computed<Section[]>(() => [
   {
     key: 'stored',
-    title: 'Stored (confirmed)',
+    title: t('dtc.sections.storedTitle'),
     codes: stored.value,
-    note: 'Confirmed faults — these turn on the check-engine light.',
+    note: t('dtc.sections.storedNote'),
   },
   {
     key: 'pending',
-    title: 'Pending',
+    title: t('dtc.sections.pendingTitle'),
     codes: pending.value,
-    note: 'Detected once but not yet confirmed. May clear on their own.',
+    note: t('dtc.sections.pendingNote'),
   },
   {
     key: 'permanent',
-    title: 'Permanent',
+    title: t('dtc.sections.permanentTitle'),
     codes: permanent.value,
-    note: 'Set by the ECU and NOT clearable with Mode 04 — they clear only after the fault is fixed and enough drive cycles pass.',
+    note: t('dtc.sections.permanentNote'),
   },
 ])
 
@@ -48,39 +51,36 @@ function readCodes(): void {
 
 function clearCodes(): void {
   if (!elm.value) return
-  const ok = confirm(
-    'Clear stored trouble codes?\n\nThis erases the check-engine light, the stored freeze-frame data, and resets emissions readiness monitors. Note the codes first. Permanent codes are not affected.',
-  )
-  if (ok) void dtc.clear(elm.value)
+  if (confirm(t('dtc.clearConfirm'))) void dtc.clear(elm.value)
 }
 </script>
 
 <template>
   <div class="stack">
-    <div v-if="!connected" class="banner warn">
-      Not connected. Go to <RouterLink to="/connect">Connect</RouterLink> first (or start the
-      simulator there).
-    </div>
+    <i18n-t v-if="!connected" keypath="dtc.notConnected" scope="global" tag="div" class="banner warn">
+      <template #link>
+        <RouterLink to="/connect">{{ t('dtc.connectLink') }}</RouterLink>
+      </template>
+    </i18n-t>
 
     <template v-else>
       <div class="row">
         <button class="primary" :disabled="loading" @click="readCodes">
-          {{ loading ? 'Reading…' : 'Read codes' }}
+          {{ loading ? t('dtc.reading') : t('dtc.readCodes') }}
         </button>
         <button v-if="hasRead" class="rec-btn" :disabled="clearing" @click="clearCodes">
-          {{ clearing ? 'Clearing…' : 'Clear codes' }}
+          {{ clearing ? t('dtc.clearing') : t('dtc.clearCodes') }}
         </button>
         <span v-if="lastReadAt" class="muted">
-          {{ total }} code{{ total === 1 ? '' : 's' }} · read
-          {{ new Date(lastReadAt).toLocaleTimeString() }}
+          {{ t('dtc.codeCount', total) }} ·
+          {{ t('dtc.readAt', { time: new Date(lastReadAt).toLocaleTimeString(locale) }) }}
         </span>
       </div>
 
       <div v-if="error" class="banner danger">{{ error }}</div>
 
       <div v-if="!hasRead" class="card muted">
-        Read the ECU for stored, pending, and permanent diagnostic trouble codes. Descriptions are
-        shown for common generic (SAE) codes; manufacturer-specific codes are flagged.
+        {{ t('dtc.intro') }}
       </div>
 
       <section v-for="s in sections" v-else :key="s.key" class="card stack">
@@ -90,26 +90,27 @@ function clearCodes(): void {
         </div>
         <p class="muted section-note">{{ s.note }}</p>
 
-        <p v-if="s.codes.length === 0" class="muted">No codes.</p>
+        <p v-if="s.codes.length === 0" class="muted">{{ t('dtc.noCodes') }}</p>
         <ul v-else class="dtc-list">
           <li v-for="d in s.codes" :key="d.code" class="dtc-row">
             <span class="dtc-code" :class="`sys-${d.system}`">{{ d.code }}</span>
             <div class="dtc-info">
-              <div>{{ d.description ?? 'No generic description available' }}</div>
+              <div>{{ dtcDescription(d.code, d.description) }}</div>
               <div class="muted dtc-tags">
-                {{ SYSTEM_LABELS[d.system] }}<template v-if="d.manufacturerSpecific">
-                  · manufacturer-specific (needs Fiat data)</template>
+                {{ dtcSystemLabel(d.system)
+                }}<template v-if="d.manufacturerSpecific">
+                  {{ t('dtc.manufacturerSpecific') }}</template>
               </div>
             </div>
           </li>
         </ul>
       </section>
 
-      <div class="banner warn">
-        Reading codes is safe. <strong>Clearing</strong> only turns off the light — it does not fix
-        the fault, and it wipes freeze-frame data useful for diagnosis. If the cause remains, the
-        code returns.
-      </div>
+      <i18n-t keypath="dtc.safe" scope="global" tag="div" class="banner warn">
+        <template #clearing>
+          <strong>{{ t('dtc.safeTerm') }}</strong>
+        </template>
+      </i18n-t>
     </template>
   </div>
 </template>

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
 import GaugeDial from '@/components/GaugeDial.vue'
 import TimeSeriesChart from '@/components/TimeSeriesChart.vue'
 import ValueCard from '@/components/ValueCard.vue'
+import { pidName, pidShort } from '@/i18n/labels'
 import { pidColor } from '@/lib/palette'
 import type { PidDefinition } from '@/obd/pids/types'
 import { useConfigStore } from '@/stores/config'
@@ -20,6 +22,7 @@ const conn = useConnectionStore()
 const live = useLiveStore()
 const config = useConfigStore()
 const session = useSessionStore()
+const { t } = useI18n({ useScope: 'global' })
 const { status, elm } = storeToRefs(conn)
 const { latest, polling, activePids, revision, errorCount } = storeToRefs(live)
 const { recording, sampleCount, startedAt } = storeToRefs(session)
@@ -69,7 +72,8 @@ async function toggleRecord(): Promise<void> {
 function displayFor(p: PidDefinition): { display: string; unit: string; highlight: boolean } {
   const v = latest.value[p.id]
   if (v === undefined) return { display: '—', unit: p.unit, highlight: false }
-  if (p.unit === 'bool') return { display: v >= 0.5 ? 'ON' : 'OFF', unit: '', highlight: v >= 0.5 }
+  if (p.unit === 'bool')
+    return { display: v >= 0.5 ? t('units.on') : t('units.off'), unit: '', highlight: v >= 0.5 }
   const display = Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1)
   return { display, unit: p.unit, highlight: false }
 }
@@ -87,34 +91,41 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="stack">
-    <div v-if="!connected" class="banner warn">
-      Not connected. Go to <RouterLink to="/connect">Connect</RouterLink> first (or start the
-      simulator there).
-    </div>
+    <i18n-t v-if="!connected" keypath="live.notConnected" scope="global" tag="div" class="banner warn">
+      <template #link>
+        <RouterLink to="/connect">{{ t('live.connectLink') }}</RouterLink>
+      </template>
+    </i18n-t>
 
     <template v-else>
       <div class="row">
-        <button v-if="!polling" class="primary" @click="startPolling">Start polling</button>
-        <button v-else @click="stopPolling">Stop</button>
-        <button v-if="!recording" :disabled="!connected" @click="toggleRecord">● Record</button>
-        <button v-else class="rec-btn" @click="toggleRecord">■ Stop recording</button>
-        <button @click="live.clearHistories()">Clear charts</button>
-        <RouterLink to="/sessions" class="muted">Sessions →</RouterLink>
+        <button v-if="!polling" class="primary" @click="startPolling">
+          {{ t('live.startPolling') }}
+        </button>
+        <button v-else @click="stopPolling">{{ t('live.stop') }}</button>
+        <button v-if="!recording" :disabled="!connected" @click="toggleRecord">
+          {{ t('live.record') }}
+        </button>
+        <button v-else class="rec-btn" @click="toggleRecord">{{ t('live.stopRecording') }}</button>
+        <button @click="live.clearHistories()">{{ t('live.clearCharts') }}</button>
+        <RouterLink to="/sessions" class="muted">{{ t('live.sessionsLink') }}</RouterLink>
       </div>
 
       <div class="row status-line">
         <span v-if="recording" class="rec-indicator">
-          <span class="rec-dot"></span>Recording {{ elapsed }} · {{ sampleCount }} saved
+          <span class="rec-dot"></span>{{ t('live.recording', { elapsed, count: sampleCount }) }}
         </span>
-        <span class="muted">{{ activePids.length }} PIDs</span>
-        <span v-if="errorCount > 0" class="muted">· {{ errorCount }} read errors</span>
+        <span class="muted">{{ t('live.pidsCount', { count: activePids.length }) }}</span>
+        <span v-if="errorCount > 0" class="muted">{{
+          t('live.readErrors', { count: errorCount })
+        }}</span>
       </div>
 
       <section v-if="gaugePids.length" class="gauge-grid">
         <GaugeDial
           v-for="p in gaugePids"
           :key="p.id"
-          :label="p.shortName"
+          :label="pidShort(p)"
           :value="latest[p.id]"
           :unit="p.unit"
           :min="p.min"
@@ -130,7 +141,7 @@ onBeforeUnmount(() => {
           :key="p.id"
           :series="live.history(p.id)"
           :revision="revision"
-          :label="p.name"
+          :label="pidName(p)"
           :unit="p.unit"
           :color="pidColor(p)"
         />
@@ -140,16 +151,23 @@ onBeforeUnmount(() => {
         <ValueCard
           v-for="p in cardPids"
           :key="p.id"
-          :label="p.shortName"
+          :label="pidShort(p)"
           v-bind="displayFor(p)"
           :experimental="p.experimental"
         />
       </section>
 
-      <p v-if="activePids.some((p) => p.experimental)" class="muted">
-        Dashed items are <strong>experimental Fiat DPF PIDs</strong> — values are from the simulator
-        and must be verified on the vehicle.
-      </p>
+      <i18n-t
+        v-if="activePids.some((p) => p.experimental)"
+        keypath="live.experimental"
+        scope="global"
+        tag="p"
+        class="muted"
+      >
+        <template #term>
+          <strong>{{ t('live.experimentalTerm') }}</strong>
+        </template>
+      </i18n-t>
     </template>
   </div>
 </template>

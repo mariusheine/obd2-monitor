@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { getPid } from '@/obd/pids/catalog'
 import {
@@ -19,6 +20,7 @@ import {
 import { useSessionStore } from '@/stores/session'
 
 const session = useSessionStore()
+const { t, locale } = useI18n({ useScope: 'global' })
 const sessions = ref<SessionRow[]>([])
 const usage = ref<{ usage: number; quota: number } | null>(null)
 const busyId = ref<number | null>(null)
@@ -28,13 +30,16 @@ const resolvePid = (id: string): PidMeta | undefined => {
   return def ? { name: def.name, unit: def.unit } : undefined
 }
 
+const transportLabel = (kind: string): string =>
+  kind === 'ble' ? t('sessions.transport.ble') : t('sessions.transport.mock')
+
 async function reload(): Promise<void> {
   sessions.value = await db.sessions.orderBy('startedAt').reverse().toArray()
   usage.value = await storageEstimate()
 }
 
 function fmtDate(ms: number): string {
-  return new Date(ms).toLocaleString()
+  return new Date(ms).toLocaleString(locale.value)
 }
 
 function fmtDuration(s: SessionRow): string {
@@ -84,7 +89,7 @@ async function exportJson(s: SessionRow): Promise<void> {
 }
 
 async function remove(s: SessionRow): Promise<void> {
-  if (!confirm(`Delete session "${s.label}" and its ${s.sampleCount} samples?`)) return
+  if (!confirm(t('sessions.confirmDelete', { label: s.label, count: s.sampleCount }))) return
   await deleteSession(s.id)
   await reload()
 }
@@ -99,37 +104,52 @@ onMounted(reload)
   <div class="stack">
     <div v-if="usage" class="card">
       <div class="row" style="justify-content: space-between">
-        <strong>Local storage</strong>
-        <span class="muted">{{ fmtBytes(usage.usage) }} of {{ fmtBytes(usage.quota) }}</span>
+        <strong>{{ t('sessions.localStorage') }}</strong>
+        <span class="muted">{{
+          t('sessions.storageOf', { used: fmtBytes(usage.usage), total: fmtBytes(usage.quota) })
+        }}</span>
       </div>
       <div class="usage-bar"><div class="usage-fill" :style="{ width: usagePct + '%' }"></div></div>
     </div>
 
-    <div v-if="sessions.length === 0" class="banner warn">
-      No recorded sessions yet. Start the simulator or connect an adapter, then hit
-      <strong>● Record</strong> on the Live dashboard.
-    </div>
+    <i18n-t
+      v-if="sessions.length === 0"
+      keypath="sessions.noSessions"
+      scope="global"
+      tag="div"
+      class="banner warn"
+    >
+      <template #record>
+        <strong>{{ t('sessions.noSessionsRecord') }}</strong>
+      </template>
+    </i18n-t>
 
     <div v-for="s in sessions" :key="s.id" class="card session">
       <div class="session-head">
         <div>
           <strong>{{ s.label }}</strong>
-          <span v-if="isActive(s)" class="rec-pill">recording</span>
+          <span v-if="isActive(s)" class="rec-pill">{{ t('sessions.recordingPill') }}</span>
         </div>
         <span class="muted">{{ fmtDate(s.startedAt) }}</span>
       </div>
       <div class="session-meta muted">
-        {{ fmtDuration(s) }} · {{ s.sampleCount.toLocaleString() }} samples · {{ s.pidIds.length }}
-        PIDs · {{ s.transportKind }}
+        {{
+          t('sessions.meta', {
+            duration: fmtDuration(s),
+            samples: s.sampleCount.toLocaleString(locale),
+            pids: s.pidIds.length,
+            transport: transportLabel(s.transportKind),
+          })
+        }}
       </div>
       <div class="row">
         <button :disabled="busyId === s.id || s.sampleCount === 0" @click="exportCsv(s)">
-          Export CSV
+          {{ t('sessions.exportCsv') }}
         </button>
         <button :disabled="busyId === s.id || s.sampleCount === 0" @click="exportJson(s)">
-          Export JSON
+          {{ t('sessions.exportJson') }}
         </button>
-        <button :disabled="isActive(s)" @click="remove(s)">Delete</button>
+        <button :disabled="isActive(s)" @click="remove(s)">{{ t('sessions.delete') }}</button>
       </div>
     </div>
   </div>

@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, shallowRef } from 'vue'
 
+import { translate } from '@/i18n'
 import { BleTransport } from '@/obd/transport/BleTransport'
 import { MockTransport } from '@/obd/transport/MockTransport'
 import { Reconnector } from '@/obd/transport/Reconnector'
@@ -11,8 +12,9 @@ import { useLiveStore } from './live'
 export type ConnStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 export type TransportKind = 'ble' | 'mock'
 
+// Standard protocol identifiers (SAE/ISO names are not translated). '0' (auto)
+// and the unknown fallback are localized via i18n.
 const PROTOCOL_NAMES: Record<string, string> = {
-  '0': 'Automatic',
   '1': 'SAE J1850 PWM',
   '2': 'SAE J1850 VPW',
   '3': 'ISO 9141-2',
@@ -26,7 +28,8 @@ const PROTOCOL_NAMES: Record<string, string> = {
 
 function describeProtocol(dpn: string): string {
   const key = dpn.trim().replace(/^A/i, '') // 'A6' => auto-selected protocol 6
-  return PROTOCOL_NAMES[key] ?? `Protocol ${dpn.trim()}`
+  if (key === '0') return translate('protocol.automatic')
+  return PROTOCOL_NAMES[key] ?? translate('protocol.fallback', { dpn: dpn.trim() })
 }
 
 export const useConnectionStore = defineStore('connection', () => {
@@ -58,7 +61,7 @@ export const useConnectionStore = defineStore('connection', () => {
     // The mock never drops unexpectedly; only auto-reconnect real BLE links.
     if (kind.value !== 'ble') {
       status.value = 'error'
-      error.value = 'Adapter disconnected'
+      error.value = translate('errors.adapterDisconnected')
       return
     }
     const live = useLiveStore()
@@ -71,7 +74,7 @@ export const useConnectionStore = defineStore('connection', () => {
     reconnector = new Reconnector({
       attempt: async () => {
         const t = transport.value
-        if (!t) throw new Error('No transport to reconnect')
+        if (!t) throw new Error(translate('errors.noTransport'))
         await t.connect() // reuses the permitted device — no user gesture needed
         await initElm(t)
         if (wasPolling && elm.value) live.resume(elm.value)
@@ -82,7 +85,7 @@ export const useConnectionStore = defineStore('connection', () => {
           error.value = null
         } else if (s === 'failed') {
           status.value = 'error'
-          error.value = 'Reconnect failed — tap Connect to retry'
+          error.value = translate('errors.reconnectFailed')
         }
       },
     })

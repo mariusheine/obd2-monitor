@@ -1,20 +1,15 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { storeToRefs } from 'pinia'
+import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
-import { useConnectionStore, type ConnStatus } from '@/stores/connection'
+import { useConnectionStore } from '@/stores/connection'
 
 const conn = useConnectionStore()
 const { status, label, protocol, error, bleSupported } = storeToRefs(conn)
 
-const STATUS_TEXT: Record<ConnStatus, string> = {
-  disconnected: 'Disconnected',
-  connecting: 'Connecting…',
-  connected: 'Connected',
-  reconnecting: 'Reconnecting…',
-  error: 'Error',
-}
+const { t } = useI18n({ useScope: 'global' })
 
 const busy = computed(() =>
   ['connecting', 'connected', 'reconnecting'].includes(status.value),
@@ -23,16 +18,22 @@ const isConnected = computed(() => status.value === 'connected')
 const canDisconnect = computed(
   () => status.value === 'connected' || status.value === 'reconnecting',
 )
-const statusText = computed(() => STATUS_TEXT[status.value])
+const statusText = computed(() => t(`status.${status.value}`))
 </script>
 
 <template>
   <div class="stack">
-    <div v-if="!bleSupported" class="banner warn">
-      Web Bluetooth isn't available in this browser. Use <strong>Chrome on Android</strong> or
-      desktop Chrome/Edge to connect a real adapter. You can still explore everything with the
-      built-in simulator.
-    </div>
+    <i18n-t
+      v-if="!bleSupported"
+      keypath="connect.bleUnsupported"
+      scope="global"
+      tag="div"
+      class="banner warn"
+    >
+      <template #chrome>
+        <strong>{{ t('connect.bleUnsupportedChrome') }}</strong>
+      </template>
+    </i18n-t>
 
     <div class="card stack">
       <div class="row">
@@ -40,34 +41,40 @@ const statusText = computed(() => STATUS_TEXT[status.value])
         <strong>{{ statusText }}</strong>
         <span v-if="label" class="muted">· {{ label }}</span>
       </div>
-      <div v-if="protocol" class="muted">Protocol: {{ protocol }}</div>
+      <div v-if="protocol" class="muted">{{ t('connect.protocol', { name: protocol }) }}</div>
       <div v-if="status === 'reconnecting'" class="banner warn">
-        Lost the adapter — reconnecting automatically. Recording (if active) resumes on its own.
+        {{ t('connect.lost') }}
       </div>
       <div v-if="error" class="banner danger">{{ error }}</div>
 
       <div class="row">
         <button class="primary" :disabled="!bleSupported || busy" @click="conn.connect('ble')">
-          Connect BLE adapter
+          {{ t('connect.connectBle') }}
         </button>
-        <button :disabled="busy" @click="conn.connect('mock')">Use simulator</button>
-        <button v-if="canDisconnect" @click="conn.disconnect()">Disconnect</button>
+        <button :disabled="busy" @click="conn.connect('mock')">
+          {{ t('connect.useSimulator') }}
+        </button>
+        <button v-if="canDisconnect" @click="conn.disconnect()">
+          {{ t('connect.disconnect') }}
+        </button>
       </div>
 
       <RouterLink v-if="isConnected" to="/live">
-        <button class="primary">Open live dashboard →</button>
+        <button class="primary">{{ t('connect.openLive') }}</button>
       </RouterLink>
     </div>
 
     <div class="card muted">
-      <p style="margin-top: 0">
-        This app talks to a Bluetooth <strong>Low Energy</strong> ELM327 adapter directly from the
-        browser — no backend, no install. On the road, add it to your Android home screen (PWA).
-      </p>
-      <p style="margin-bottom: 0">
-        Tip: pair the adapter in Android settings first, start the engine, then tap
-        <em>Connect BLE adapter</em> and pick your device.
-      </p>
+      <i18n-t keypath="connect.intro" scope="global" tag="p" style="margin-top: 0">
+        <template #lowEnergy>
+          <strong>{{ t('connect.introLowEnergy') }}</strong>
+        </template>
+      </i18n-t>
+      <i18n-t keypath="connect.tip" scope="global" tag="p" style="margin-bottom: 0">
+        <template #connect>
+          <em>{{ t('connect.tipConnect') }}</em>
+        </template>
+      </i18n-t>
     </div>
   </div>
 </template>
