@@ -37,36 +37,35 @@ describe('buildSessionJson', () => {
   it('embeds session metadata and compact samples', () => {
     const s: SessionRow = {
       id: 1,
-      label: 'Drive',
       note: '',
       startedAt: 0,
       endedAt: 1000,
       transportKind: 'mock',
       pidIds: ['std.rpm'],
       sampleCount: 2,
+      syncSessionId: 'test-sync-id',
+      syncCursorId: 0,
     }
     const json = JSON.parse(buildSessionJson(s, samples))
-    expect(json.session.label).toBe('Drive')
+    expect(json.session.startedAt).toBe(0)
     expect(json.samples).toHaveLength(2)
     expect(json.samples[0]).toEqual({ ts: 1000, pidId: 'std.rpm', value: 850 })
   })
 })
 
 describe('sessionFileBase', () => {
-  it('produces a filesystem-safe base name', () => {
+  it('is derived from the session start time', () => {
     const s: SessionRow = {
       id: 1,
-      label: 'My Drive!',
       note: '',
       startedAt: Date.parse('2026-07-11T10:00:00Z'),
       endedAt: null,
       transportKind: 'mock',
       pidIds: [],
       sampleCount: 0,
+      syncSessionId: 'test-sync-id',
+      syncCursorId: 0,
     }
-    const base = sessionFileBase(s)
-    expect(base).toMatch(/^obd-2026-07-11-10-00-00/)
-    expect(base).toContain('My-Drive')
-    expect(base).not.toContain('!')
+    expect(sessionFileBase(s)).toBe('obd-2026-07-11-10-00-00')
   })
 })

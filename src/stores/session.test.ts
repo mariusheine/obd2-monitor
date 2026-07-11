@@ -30,7 +30,7 @@ describe('session recorder (end-to-end)', () => {
       { pidId: 'std.rpm', intervalMs: 10 },
       { pidId: 'std.coolantTemp', intervalMs: 10 },
     ])
-    await session.start('unit test drive')
+    await session.start()
     expect(session.recording).toBe(true)
 
     await wait(200)
@@ -42,7 +42,6 @@ describe('session recorder (end-to-end)', () => {
     const sessions = await db.sessions.toArray()
     expect(sessions).toHaveLength(1)
     const row = sessions[0]!
-    expect(row.label).toBe('unit test drive')
     expect(row.endedAt).not.toBeNull()
 
     const count = await db.samples.where('sessionId').equals(row.id).count()

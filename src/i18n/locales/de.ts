@@ -12,6 +12,7 @@ const de: typeof en = {
       live: 'Live',
       sessions: 'Sitzungen',
       codes: 'Codes',
+      settings: 'Einstellungen',
     },
   },
   language: {
@@ -71,6 +72,56 @@ const de: typeof en = {
     transport: {
       ble: 'BLE',
       mock: 'Simulator',
+    },
+    syncSynced: 'synchronisiert',
+    syncPending: 'nicht synchronisiert',
+    syncNow: 'Jetzt synchronisieren',
+    syncing: 'Synchronisiere…',
+  },
+  settings: {
+    title: 'Cloud-Sync',
+    intro:
+      'Lade aufgezeichnete Sitzungen in einen Ordner deiner eigenen Nextcloud hoch, damit alle, die den Van fahren, ihre Daten bündeln. Verwendet einen Nextcloud-Benutzernamen und ein App-Passwort (siehe Anleitung).',
+    serverUrl: 'Nextcloud-Server-URL',
+    serverUrlPlaceholder: 'https://cloud.example.com',
+    serverUrlHelp: 'Die Basisadresse deiner Nextcloud — ohne Pfad.',
+    invalidUrl: 'Das sieht nicht nach einer gültigen URL aus.',
+    urlOk: 'Server: {host}',
+    username: 'Benutzername',
+    usernamePlaceholder: 'z. B. van-obd',
+    appPassword: 'App-Passwort',
+    appPasswordPlaceholder: 'xxxxx-xxxxx-xxxxx-xxxxx-xxxxx',
+    appPasswordHelp:
+      'Erstelle eins in Nextcloud unter Einstellungen → Sicherheit → Geräte & Sitzungen. Nicht dein Login-Passwort.',
+    folder: 'Zielordner',
+    folderPlaceholder: 'obd-sessions',
+    folderHelp:
+      'Wird automatisch erstellt, falls nicht vorhanden. Unterordner erlaubt (z. B. van/obd).',
+    deviceLabel: 'Name dieses Geräts',
+    deviceLabelPlaceholder: 'z. B. Marius’ Handy',
+    deviceLabelHelp:
+      'Wird in jedem Upload gespeichert, damit du erkennst, welches Gerät eine Fahrt aufgezeichnet hat.',
+    enable: 'Sitzungen mit Nextcloud synchronisieren',
+    test: 'Verbindung testen',
+    testing: 'Teste…',
+    testOk: 'Verbunden — Zugangsdaten funktionieren und der Ordner ist bereit.',
+    statusTitle: 'Status',
+    lastSync: 'Letzte Synchronisierung: {when}',
+    never: 'nie',
+    pending: '{count} warten auf Upload',
+    allSynced: 'Alles ist hochgeladen.',
+    setupNote:
+      'Einmalige Einrichtung: Installiere die App „webapppassword" in deiner Nextcloud und erlaube den Origin dieser App, damit der Browser hochladen darf. Siehe {link}.',
+    setupLink: 'die Einrichtungsanleitung',
+  },
+  sync: {
+    error: {
+      cors: 'Vom Browser blockiert — deine Nextcloud benötigt die CORS-Einrichtung (siehe Anleitung), oder du bist offline.',
+      auth: 'Nicht autorisiert — prüfe das Freigabe-Passwort.',
+      forbidden: 'Upload abgelehnt — die Freigabe braucht das Recht Erstellen und freien Speicher.',
+      notfound: 'Freigabe nicht gefunden — prüfe den Link.',
+      offline: 'Du bist offline — wird automatisch wiederholt.',
+      server: 'Nextcloud hat einen Fehler zurückgegeben.',
     },
   },
   dtc: {

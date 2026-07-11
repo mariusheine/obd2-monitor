@@ -7,6 +7,7 @@ import { MockTransport } from '@/obd/transport/MockTransport'
 import { Reconnector } from '@/obd/transport/Reconnector'
 import { Elm327 } from '@/obd/elm327/Elm327'
 import type { Transport } from '@/obd/transport/types'
+import { useConfigStore } from './config'
 import { useLiveStore } from './live'
 
 export type ConnStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
@@ -56,6 +57,29 @@ export const useConnectionStore = defineStore('connection', () => {
     protocol.value = describeProtocol(dpn)
   }
 
+  /**
+   * On a fresh connect, start polling and recording automatically so a drive is
+   * logged without anyone pressing record. Idempotent: the reconnect path
+   * resumes polling and `session.start()` no-ops while already recording, so
+   * this never spawns a second session. The session store is dynamically
+   * imported to keep Dexie out of the initial bundle.
+   */
+  async function startMonitoring(): Promise<void> {
+    const e = elm.value
+    if (!e) return
+    const live = useLiveStore()
+    if (!live.polling) live.start(e, useConfigStore().specs)
+    const { useSessionStore } = await import('./session')
+    await useSessionStore().start()
+  }
+
+  /** Stop the recorder if it's running (best-effort; flushes the final batch). */
+  async function stopRecording(): Promise<void> {
+    const { useSessionStore } = await import('./session')
+    const s = useSessionStore()
+    if (s.recording) await s.stop()
+  }
+
   function handleUnexpectedDisconnect(): void {
     if (status.value !== 'connected') return
     // The mock never drops unexpectedly; only auto-reconnect real BLE links.
@@ -86,6 +110,7 @@ export const useConnectionStore = defineStore('connection', () => {
         } else if (s === 'failed') {
           status.value = 'error'
           error.value = translate('errors.reconnectFailed')
+          void stopRecording()
         }
       },
     })
@@ -104,6 +129,12 @@ export const useConnectionStore = defineStore('connection', () => {
       await initElm(t)
       t.onDisconnect(handleUnexpectedDisconnect)
       status.value = 'connected'
+      // Best-effort — a recording hiccup must not tear down a good connection.
+      try {
+        await startMonitoring()
+      } catch {
+        // non-fatal
+      }
     } catch (err) {
       status.value = 'error'
       error.value = err instanceof Error ? err.message : String(err)
@@ -116,6 +147,8 @@ export const useConnectionStore = defineStore('connection', () => {
   async function disconnect(): Promise<void> {
     reconnector?.stop()
     reconnector = null
+    await stopRecording()
+    useLiveStore().stop()
     elm.value?.dispose()
     await transport.value?.disconnect().catch(() => undefined)
     elm.value = null

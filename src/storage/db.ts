@@ -3,7 +3,6 @@ import Dexie, { type EntityTable } from 'dexie'
 /** A recorded drive session. */
 export interface SessionRow {
   id: number
-  label: string
   note: string
   startedAt: number
   endedAt: number | null
@@ -11,6 +10,21 @@ export interface SessionRow {
   /** PID ids that were being recorded. */
   pidIds: string[]
   sampleCount: number
+  /**
+   * Stable id shared by every cloud chunk of this session, so chunks uploaded
+   * from any device group and reassemble unambiguously (see {@link ../stores/sync}).
+   */
+  syncSessionId: string
+  /** Highest sample `id` already uploaded to the cloud (0 = nothing yet). */
+  syncCursorId: number
+}
+
+/** A collision-resistant id for cloud sync grouping. */
+export function newSyncId(): string {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
 }
 
 /** A single logged reading. */
@@ -40,6 +54,24 @@ db.version(1).stores({
   sessions: '++id, startedAt',
   samples: '++id, sessionId, [sessionId+ts]',
 })
+
+// v2 adds the [sessionId+id] index so the cloud sync engine can page "samples
+// newer than the last uploaded id" cheaply, plus the sync-tracking fields on
+// sessions (backfilled for pre-existing rows).
+db.version(2)
+  .stores({
+    sessions: '++id, startedAt',
+    samples: '++id, sessionId, [sessionId+ts], [sessionId+id]',
+  })
+  .upgrade((tx) =>
+    tx
+      .table<SessionRow, number>('sessions')
+      .toCollection()
+      .modify((s) => {
+        s.syncSessionId ??= newSyncId()
+        s.syncCursorId ??= 0
+      }),
+  )
 
 /** Delete a session and all of its samples in one transaction. */
 export async function deleteSession(sessionId: number): Promise<void> {

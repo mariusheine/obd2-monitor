@@ -28,5 +28,11 @@ export const router = createRouter({
       component: () => import('@/views/DtcView.vue'),
       meta: { title: 'Codes' },
     },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/views/SettingsView.vue'),
+      meta: { title: 'Settings' },
+    },
   ],
 })

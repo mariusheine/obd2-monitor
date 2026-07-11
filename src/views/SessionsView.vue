@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
 import { getPid } from '@/obd/pids/catalog'
@@ -18,12 +19,17 @@ import {
   type PidMeta,
 } from '@/storage/export'
 import { useSessionStore } from '@/stores/session'
+import { useSyncStore } from '@/stores/sync'
 
 const session = useSessionStore()
+const sync = useSyncStore()
+const { active: syncActive, pendingIds, running: syncRunning } = storeToRefs(sync)
 const { t, locale } = useI18n({ useScope: 'global' })
 const sessions = ref<SessionRow[]>([])
 const usage = ref<{ usage: number; quota: number } | null>(null)
 const busyId = ref<number | null>(null)
+
+const isSynced = (s: SessionRow): boolean => !pendingIds.value.includes(s.id)
 
 const resolvePid = (id: string): PidMeta | undefined => {
   const def = getPid(id)
@@ -36,6 +42,7 @@ const transportLabel = (kind: string): string =>
 async function reload(): Promise<void> {
   sessions.value = await db.sessions.orderBy('startedAt').reverse().toArray()
   usage.value = await storageEstimate()
+  await sync.refreshPending()
 }
 
 function fmtDate(ms: number): string {
@@ -89,7 +96,8 @@ async function exportJson(s: SessionRow): Promise<void> {
 }
 
 async function remove(s: SessionRow): Promise<void> {
-  if (!confirm(t('sessions.confirmDelete', { label: s.label, count: s.sampleCount }))) return
+  if (!confirm(t('sessions.confirmDelete', { label: fmtDate(s.startedAt), count: s.sampleCount })))
+    return
   await deleteSession(s.id)
   await reload()
 }
@@ -102,6 +110,12 @@ onMounted(reload)
 
 <template>
   <div class="stack">
+    <div v-if="syncActive" class="row" style="justify-content: flex-end">
+      <button :disabled="syncRunning" @click="sync.tick()">
+        {{ syncRunning ? t('sessions.syncing') : t('sessions.syncNow') }}
+      </button>
+    </div>
+
     <div v-if="usage" class="card">
       <div class="row" style="justify-content: space-between">
         <strong>{{ t('sessions.localStorage') }}</strong>
@@ -127,10 +141,12 @@ onMounted(reload)
     <div v-for="s in sessions" :key="s.id" class="card session">
       <div class="session-head">
         <div>
-          <strong>{{ s.label }}</strong>
+          <strong>{{ fmtDate(s.startedAt) }}</strong>
           <span v-if="isActive(s)" class="rec-pill">{{ t('sessions.recordingPill') }}</span>
+          <span v-else-if="syncActive" class="sync-pill" :class="{ pending: !isSynced(s) }">
+            {{ isSynced(s) ? t('sessions.syncSynced') : t('sessions.syncPending') }}
+          </span>
         </div>
-        <span class="muted">{{ fmtDate(s.startedAt) }}</span>
       </div>
       <div class="session-meta muted">
         {{
@@ -189,5 +205,18 @@ onMounted(reload)
   color: #fca5a5;
   font-size: 0.75rem;
   font-weight: 600;
+}
+.sync-pill {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(34, 197, 94, 0.15);
+  color: #86efac;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+.sync-pill.pending {
+  background: rgba(234, 179, 8, 0.15);
+  color: #fde047;
 }
 </style>

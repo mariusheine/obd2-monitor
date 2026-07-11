@@ -1,17 +1,13 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
-import { db, type NewSample } from '@/storage/db'
+import { db, newSyncId, type NewSample } from '@/storage/db'
 import type { Sample } from '@/obd/pids/types'
 import { useConnectionStore } from './connection'
 import { useLiveStore } from './live'
 
 const FLUSH_INTERVAL_MS = 1500
 const FLUSH_THRESHOLD = 500
-
-function defaultLabel(): string {
-  return new Date().toLocaleString()
-}
 
 /**
  * Records the live sample stream into IndexedDB as a drive session. Samples are
@@ -49,19 +45,20 @@ export const useSessionStore = defineStore('session', () => {
     if (buffer.length >= FLUSH_THRESHOLD) void flush()
   }
 
-  async function start(label?: string): Promise<void> {
+  async function start(): Promise<void> {
     if (recording.value) return
     const live = useLiveStore()
     const conn = useConnectionStore()
     const now = Date.now()
     const id = await db.sessions.add({
-      label: label?.trim() || defaultLabel(),
       note: '',
       startedAt: now,
       endedAt: null,
       transportKind: conn.kind ?? 'unknown',
       pidIds: live.activePids.map((p) => p.id),
       sampleCount: 0,
+      syncSessionId: newSyncId(),
+      syncCursorId: 0,
     })
     currentId.value = id
     startedAt.value = now
@@ -85,6 +82,11 @@ export const useSessionStore = defineStore('session', () => {
     }
     currentId.value = null
     startedAt.value = null
+    // Nudge the cloud sync engine to upload the tail promptly (best-effort).
+    // Dynamically imported so the WebDAV client only loads once a drive ends.
+    void import('./sync')
+      .then(({ useSyncStore }) => useSyncStore().tick())
+      .catch(() => undefined)
   }
 
   return { recording, currentId, startedAt, sampleCount, start, stop }

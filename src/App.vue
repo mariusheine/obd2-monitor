@@ -44,6 +44,7 @@ watch(polling, (wanted) => void setWanted(wanted), { immediate: true })
       <RouterLink to="/live">{{ t('app.nav.live') }}</RouterLink>
       <RouterLink to="/sessions">{{ t('app.nav.sessions') }}</RouterLink>
       <RouterLink to="/dtc">{{ t('app.nav.codes') }}</RouterLink>
+      <RouterLink to="/settings">{{ t('app.nav.settings') }}</RouterLink>
     </nav>
     <select
       class="lang-select"

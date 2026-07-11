@@ -48,11 +48,10 @@ export function buildSessionJson(session: SessionRow, samples: readonly SampleRo
   )
 }
 
-/** A filesystem-safe base filename for a session export. */
-export function sessionFileBase(session: SessionRow): string {
+/** A filesystem-safe base filename for a session export, from its start time. */
+export function sessionFileBase(session: Pick<SessionRow, 'startedAt'>): string {
   const date = new Date(session.startedAt).toISOString().slice(0, 19).replace(/[:T]/g, '-')
-  const label = session.label.replace(/[^a-z0-9-_]+/gi, '-').replace(/^-+|-+$/g, '')
-  return `obd-${date}${label ? `-${label}` : ''}`
+  return `obd-${date}`
 }
 
 /** Trigger a browser download of text content. Browser-only. */
