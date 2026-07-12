@@ -104,8 +104,13 @@ self-describing:
   "uploadedAt": "2026-07-12T14:31:05.123Z",
   "syncSessionId": "…",
   "device": "Marius' phone",
-  "session": { "startedAt": …, "endedAt": …, "transportKind": "ble", "pidIds": [ … ] },
-  "samples": [ { "ts": …, "pidId": "std.rpm", "value": 820 }, … ]
+  "session": {
+    "startedAt": "2026-07-12T14:30:05.000Z",
+    "endedAt": null,
+    "transportKind": "ble",
+    "pidIds": [ … ]
+  },
+  "samples": [ { "ts": "2026-07-12T14:31:05.021Z", "pidId": "std.rpm", "value": 820 }, … ]
 }
 ```
 

@@ -181,19 +181,21 @@ export function buildIntervalFile(
   device: string,
   uploadedAt: number,
 ): string {
+  // All timestamps are written as ISO strings so the files read easily.
+  const iso = (ms: number): string => new Date(ms).toISOString()
   return JSON.stringify(
     {
       app: 'obd2-monitor',
-      uploadedAt: new Date(uploadedAt).toISOString(),
+      uploadedAt: iso(uploadedAt),
       syncSessionId: session.syncSessionId,
       device,
       session: {
-        startedAt: session.startedAt,
-        endedAt: session.endedAt,
+        startedAt: iso(session.startedAt),
+        endedAt: session.endedAt === null ? null : iso(session.endedAt),
         transportKind: session.transportKind,
         pidIds: session.pidIds,
       },
-      samples: samples.map((s) => ({ ts: s.ts, pidId: s.pidId, value: s.value })),
+      samples: samples.map((s) => ({ ts: iso(s.ts), pidId: s.pidId, value: s.value })),
     },
     null,
     2,
