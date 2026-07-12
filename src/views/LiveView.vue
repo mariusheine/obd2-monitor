@@ -55,20 +55,6 @@ function startPolling(): void {
   if (elm.value) live.start(elm.value, config.specs)
 }
 
-async function stopPolling(): Promise<void> {
-  if (recording.value) await session.stop()
-  live.stop()
-}
-
-async function toggleRecord(): Promise<void> {
-  if (recording.value) {
-    await session.stop()
-    return
-  }
-  if (!polling.value) startPolling()
-  await session.start()
-}
-
 function displayFor(p: PidDefinition): { display: string; unit: string; highlight: boolean } {
   const v = latest.value[p.id]
   if (v === undefined) return { display: '—', unit: p.unit, highlight: false }
@@ -102,11 +88,7 @@ onBeforeUnmount(() => {
         <button v-if="!polling" class="primary" @click="startPolling">
           {{ t('live.startPolling') }}
         </button>
-        <button v-else @click="stopPolling">{{ t('live.stop') }}</button>
-        <button v-if="!recording" :disabled="!connected" @click="toggleRecord">
-          {{ t('live.record') }}
-        </button>
-        <button v-else class="rec-btn" @click="toggleRecord">{{ t('live.stopRecording') }}</button>
+        <button v-else class="rec-btn" @click="conn.disconnect()">{{ t('live.stop') }}</button>
         <button @click="live.clearHistories()">{{ t('live.clearCharts') }}</button>
         <RouterLink to="/sessions" class="muted">{{ t('live.sessionsLink') }}</RouterLink>
       </div>

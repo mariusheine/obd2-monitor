@@ -50,7 +50,7 @@ const en = {
     notConnected: 'Not connected. Go to {link} first (or start the simulator there).',
     connectLink: 'Connect',
     startPolling: 'Start polling',
-    stop: 'Stop',
+    stop: 'Stop & disconnect',
     record: '● Record',
     stopRecording: '■ Stop recording',
     clearCharts: 'Clear charts',

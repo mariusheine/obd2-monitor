@@ -45,7 +45,7 @@ const de: typeof en = {
     notConnected: 'Nicht verbunden. Gehe zuerst zu {link} (oder starte dort den Simulator).',
     connectLink: 'Verbinden',
     startPolling: 'Abfrage starten',
-    stop: 'Stopp',
+    stop: 'Stoppen & trennen',
     record: '● Aufnahme',
     stopRecording: '■ Aufnahme stoppen',
     clearCharts: 'Diagramme leeren',
