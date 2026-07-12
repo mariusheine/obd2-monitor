@@ -252,6 +252,21 @@ const de: typeof en = {
       short: 'Seit Regen.',
       desc: 'Gefahrene Strecke seit der letzten abgeschlossenen DPF-Regeneration.',
     },
+    fiat_dpf_regenOk: {
+      name: 'Erfolgreiche DPF-Regenerationen',
+      short: 'Regen. OK',
+      desc: 'Gesamtzahl der vollständig abgeschlossenen DPF-Regenerationen.',
+    },
+    fiat_dpf_regenDisrupted: {
+      name: 'Abgebrochene DPF-Regenerationen',
+      short: 'Regen. abgebr.',
+      desc: 'Gesamtzahl der vor dem Abschluss unterbrochenen DPF-Regenerationen (z. B. Motor abgestellt).',
+    },
+    fiat_dpf_regenRetried: {
+      name: 'Wiederholte DPF-Regenerationen',
+      short: 'Regen. wiederh.',
+      desc: 'Gesamtzahl der DPF-Regenerationen, die das Steuergerät nach einem abgebrochenen Versuch neu gestartet hat.',
+    },
   },
   dtcDesc: {
     P2002: 'Dieselpartikelfilter-Wirkungsgrad unter Schwellwert (Bank 1)',

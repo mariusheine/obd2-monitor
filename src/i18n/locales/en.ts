@@ -254,6 +254,21 @@ const en = {
       short: 'Since last regen',
       desc: 'Distance driven since the last DPF regeneration completed.',
     },
+    fiat_dpf_regenOk: {
+      name: 'Successful DPF regenerations',
+      short: 'Regens OK',
+      desc: 'Lifetime count of DPF regenerations that ran to completion.',
+    },
+    fiat_dpf_regenDisrupted: {
+      name: 'Disrupted DPF regenerations',
+      short: 'Regens disrupted',
+      desc: 'Lifetime count of DPF regenerations interrupted before completing (e.g. the engine was switched off).',
+    },
+    fiat_dpf_regenRetried: {
+      name: 'Retried DPF regenerations',
+      short: 'Regens retried',
+      desc: 'Lifetime count of DPF regenerations the ECU restarted after a previous attempt was disrupted.',
+    },
   },
   dtcDesc: {
     P2002: 'Diesel Particulate Filter efficiency below threshold (Bank 1)',

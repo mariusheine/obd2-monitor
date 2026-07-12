@@ -35,6 +35,12 @@ export interface SimState {
   regenActive: number
   /** Kilometres since the last completed regeneration. */
   kmSinceRegen: number
+  /** Lifetime count of regenerations that ran to completion. */
+  regenOkCount: number
+  /** Lifetime count of regenerations interrupted before completing. */
+  regenDisruptedCount: number
+  /** Lifetime count of regenerations the ECU restarted after a disruption. */
+  regenRetriedCount: number
 }
 
 export class VehicleSimulator {
@@ -78,6 +84,13 @@ export class VehicleSimulator {
     const egtC = regenActive ? 560 + 60 * Math.sin(t) : 180 + engineLoadPct * 3.2
     const kmSinceRegen = ((cyclePos / 600) * 320) | 0
 
+    // Monotonic lifetime counters for a well-used van: every ~600 s cycle ends
+    // with a completed regen; a minority are disrupted (and then mostly retried).
+    const completed = Math.floor(t / 600)
+    const regenOkCount = 128 + completed
+    const regenDisruptedCount = 11 + Math.floor(t / 3000)
+    const regenRetriedCount = 9 + Math.floor(t / 3600)
+
     return {
       rpm,
       speedKmh,
@@ -94,6 +107,9 @@ export class VehicleSimulator {
       egtC,
       regenActive,
       kmSinceRegen,
+      regenOkCount,
+      regenDisruptedCount,
+      regenRetriedCount,
     }
   }
 
@@ -143,6 +159,12 @@ export class VehicleSimulator {
           return [s.regenActive]
         case 0x18f3: // km since regen
           return u16(s.kmSinceRegen)
+        case 0x18f4: // successful regen count
+          return u16(s.regenOkCount)
+        case 0x18f5: // disrupted regen count
+          return u16(s.regenDisruptedCount)
+        case 0x18f6: // retried regen count
+          return u16(s.regenRetriedCount)
         default:
           return null
       }

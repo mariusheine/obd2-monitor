@@ -32,4 +32,7 @@ export const DPF_PRESET_IDS: readonly string[] = [
   'fiat.dpf.egt',
   'fiat.dpf.regenActive',
   'fiat.dpf.kmSinceRegen',
+  'fiat.dpf.regenOk',
+  'fiat.dpf.regenDisrupted',
+  'fiat.dpf.regenRetried',
 ]

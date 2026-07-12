@@ -81,4 +81,58 @@ export const FIAT_DPF_PIDS: readonly PidDefinition[] = [
       return a === undefined || b === undefined ? null : a * 256 + b
     },
   },
+  {
+    id: 'fiat.dpf.regenOk',
+    mode: 0x22,
+    pid: 0x18f4,
+    name: 'Successful DPF regenerations',
+    shortName: 'Regens OK',
+    unit: '',
+    category: 'dpf',
+    min: 0,
+    max: 65535,
+    experimental: true,
+    source: 'placeholder — verify on vehicle',
+    decode: (d) => {
+      const a = d[0]
+      const b = d[1]
+      return a === undefined || b === undefined ? null : a * 256 + b
+    },
+  },
+  {
+    id: 'fiat.dpf.regenDisrupted',
+    mode: 0x22,
+    pid: 0x18f5,
+    name: 'Disrupted DPF regenerations',
+    shortName: 'Regens disrupted',
+    unit: '',
+    category: 'dpf',
+    min: 0,
+    max: 65535,
+    experimental: true,
+    source: 'placeholder — verify on vehicle',
+    decode: (d) => {
+      const a = d[0]
+      const b = d[1]
+      return a === undefined || b === undefined ? null : a * 256 + b
+    },
+  },
+  {
+    id: 'fiat.dpf.regenRetried',
+    mode: 0x22,
+    pid: 0x18f6,
+    name: 'Retried DPF regenerations',
+    shortName: 'Regens retried',
+    unit: '',
+    category: 'dpf',
+    min: 0,
+    max: 65535,
+    experimental: true,
+    source: 'placeholder — verify on vehicle',
+    decode: (d) => {
+      const a = d[0]
+      const b = d[1]
+      return a === undefined || b === undefined ? null : a * 256 + b
+    },
+  },
 ]
