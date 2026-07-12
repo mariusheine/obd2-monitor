@@ -118,11 +118,26 @@ Files are pretty-printed JSON. The `<shortId>` is the first 8 characters of `syn
 which is globally unique per recording, so drives from different devices never collide.
 
 > After a file uploads successfully, its samples are **deleted from the device** to free
-> space — the cloud copy becomes the source of truth. Each drive still appears in the app's
-> history (with its total sample count and a "synced" badge), but local CSV/JSON export of
-> an already-synced drive will be empty; rebuild it from the cloud files instead.
+> space — the cloud copy becomes the source of truth. Once a drive has **ended and fully
+> uploaded**, its leftover local record is pruned too, so the app no longer relies on
+> IndexedDB for finished drives.
 
-### Reassemble a full drive
+## Reading drives back in the app
+
+The **Sessions** screen lists cloud drives (marked *in cloud*) alongside any still-recording or
+not-yet-uploaded local ones, including drives recorded on **other devices** that share the same
+folder. For a cloud drive you can:
+
+- **Export CSV / JSON** — the app downloads that drive's interval files, reassembles them, and
+  saves a single CSV or JSON, exactly like a local export.
+- **Delete** — removes the drive's whole folder from Nextcloud (with a confirmation), so it
+  disappears from every device.
+
+Because finished drives are sourced from the cloud, a drive won't show while the device is offline
+or the cloud is unreachable. The manual `jq` recipe below is still handy for scripting outside the
+app.
+
+### Reassemble a full drive (outside the app)
 
 A recording's minute-files are all in its subfolder — order by `uploadedAt` and concatenate
 their `samples`:

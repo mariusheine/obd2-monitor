@@ -4,11 +4,15 @@ import type { SampleRow, SessionRow } from '@/storage/db'
 import {
   buildIntervalFile,
   davFileUrl,
+  deletePath,
   ensureFolder,
   folderUrl,
+  getFile,
   intervalFilePath,
   normalizeBaseUrl,
+  parseMultistatus,
   probe,
+  propfindList,
   putFile,
   sessionFolderName,
   SyncError,
@@ -159,5 +163,111 @@ describe('putFile / probe / ensureFolder', () => {
     expect(fetchMock.mock.calls[0]![0]).toBe(
       'https://cloud.example.com/remote.php/dav/files/van-obd/',
     )
+  })
+})
+
+const LISTING_XML = `<?xml version="1.0"?>
+<d:multistatus xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">
+  <d:response>
+    <d:href>/remote.php/dav/files/van-obd/obd-sessions/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype><d:collection/></d:resourcetype>
+        <d:getlastmodified>Sun, 12 Jul 2026 16:05:11 GMT</d:getlastmodified>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/files/van-obd/obd-sessions/obd-2026-07-12-14-30-05-abcdef12/</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype><d:collection/></d:resourcetype>
+        <d:getlastmodified>Sun, 12 Jul 2026 14:32:05 GMT</d:getlastmodified>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+  <d:response>
+    <d:href>/remote.php/dav/files/van-obd/obd-sessions/obd-2026-07-12-14-31-05-123.json</d:href>
+    <d:propstat>
+      <d:prop>
+        <d:resourcetype/>
+        <d:getlastmodified>Sun, 12 Jul 2026 14:31:05 GMT</d:getlastmodified>
+        <d:getcontentlength>512</d:getcontentlength>
+      </d:prop>
+      <d:status>HTTP/1.1 200 OK</d:status>
+    </d:propstat>
+  </d:response>
+</d:multistatus>`
+
+describe('parseMultistatus', () => {
+  it('parses collections and files with mtime + size', () => {
+    const entries = parseMultistatus(LISTING_XML)
+    expect(entries).toHaveLength(3)
+    const folder = entries.find((e) => e.name === 'obd-2026-07-12-14-30-05-abcdef12')!
+    expect(folder.isCollection).toBe(true)
+    expect(folder.size).toBeNull()
+    expect(folder.lastModified).toBe(Date.parse('Sun, 12 Jul 2026 14:32:05 GMT'))
+    const file = entries.find((e) => e.name === 'obd-2026-07-12-14-31-05-123.json')!
+    expect(file.isCollection).toBe(false)
+    expect(file.size).toBe(512)
+  })
+})
+
+describe('propfindList / getFile / deletePath', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('lists children with PROPFIND Depth 1 and drops the folder itself', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(LISTING_XML, { status: 207 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const entries = await propfindList(cfg)
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe('https://cloud.example.com/remote.php/dav/files/van-obd/obd-sessions/')
+    expect(init.method).toBe('PROPFIND')
+    expect(init.headers.Depth).toBe('1')
+    // The queried folder (obd-sessions) is filtered out; only its children remain.
+    expect(entries.map((e) => e.name)).toEqual([
+      'obd-2026-07-12-14-30-05-abcdef12',
+      'obd-2026-07-12-14-31-05-123.json',
+    ])
+  })
+
+  it('lists a sub-folder path', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('<d:multistatus xmlns:d="DAV:"/>', { status: 207 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await propfindList(cfg, 'obd-2026-07-12-14-30-05-abcdef12')
+    expect(fetchMock.mock.calls[0]![0]).toBe(
+      'https://cloud.example.com/remote.php/dav/files/van-obd/obd-sessions/obd-2026-07-12-14-30-05-abcdef12',
+    )
+  })
+
+  it('maps a 404 PROPFIND to a notfound SyncError', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
+    await expect(propfindList(cfg, 'missing')).rejects.toMatchObject({ kind: 'notfound' })
+  })
+
+  it('GETs a file and returns its text', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response('{"ok":true}', { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(getFile(cfg, 'folder/a.json')).resolves.toBe('{"ok":true}')
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toContain('/obd-sessions/folder/a.json')
+    expect(init.method).toBe('GET')
+  })
+
+  it('DELETEs a path and tolerates 404 (already gone)', async () => {
+    const del = vi.fn().mockResolvedValue(new Response(null, { status: 204 }))
+    vi.stubGlobal('fetch', del)
+    await expect(deletePath(cfg, 'folder')).resolves.toBeUndefined()
+    expect(del.mock.calls[0]![1].method).toBe('DELETE')
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
+    await expect(deletePath(cfg, 'gone')).resolves.toBeUndefined()
+  })
+
+  it('throws on a DELETE server error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 500 })))
+    await expect(deletePath(cfg, 'folder')).rejects.toBeInstanceOf(SyncError)
   })
 })

@@ -81,6 +81,12 @@ const en = {
     syncPending: 'not synced',
     syncNow: 'Sync now',
     syncing: 'Syncing…',
+    cloudBadge: 'in cloud',
+    cloudMeta: '{duration} · in Nextcloud',
+    downloading: 'Preparing…',
+    cloudError: 'Couldn’t load sessions from the cloud. Check the connection in Settings.',
+    confirmDeleteCloud:
+      'Delete session "{label}" from Nextcloud? This removes it from the cloud for all devices.',
   },
   settings: {
     title: 'Cloud sync',

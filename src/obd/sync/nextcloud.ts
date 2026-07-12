@@ -171,6 +171,106 @@ export async function probe(cfg: SyncConfig): Promise<void> {
   if (res.status !== 207 && !res.ok) throw statusError(res.status)
 }
 
+/** One entry (file or folder) from a `PROPFIND` multistatus listing. */
+export interface DavEntry {
+  /** Last path segment, percent-decoded (e.g. a session folder or `obd-….json`). */
+  name: string
+  isCollection: boolean
+  /** `getlastmodified` as epoch ms, or null if the server omitted it. */
+  lastModified: number | null
+  /** `getcontentlength` in bytes, or null (collections have no length). */
+  size: number | null
+}
+
+/** Last path segment of a DAV href, percent-decoded and de-slashed. */
+function hrefName(href: string): string {
+  const segs = href.split('/').filter(Boolean)
+  const last = segs[segs.length - 1] ?? ''
+  try {
+    return decodeURIComponent(last)
+  } catch {
+    return last
+  }
+}
+
+/**
+ * Parse a WebDAV `207 Multi-Status` body into flat entries. Uses `DOMParser`,
+ * which exists both in the browser and in the jsdom test environment. Namespace
+ * lookups (`DAV:`) tolerate whatever prefix the server uses.
+ */
+export function parseMultistatus(xml: string): DavEntry[] {
+  const doc = new DOMParser().parseFromString(xml, 'application/xml')
+  const responses = doc.getElementsByTagNameNS('DAV:', 'response')
+  const entries: DavEntry[] = []
+  for (const res of Array.from(responses)) {
+    const href = res.getElementsByTagNameNS('DAV:', 'href')[0]?.textContent ?? ''
+    if (!href) continue
+    const isCollection =
+      res.getElementsByTagNameNS('DAV:', 'collection').length > 0
+    const modText = res.getElementsByTagNameNS('DAV:', 'getlastmodified')[0]?.textContent ?? ''
+    const parsedMod = Date.parse(modText)
+    const sizeText = res.getElementsByTagNameNS('DAV:', 'getcontentlength')[0]?.textContent ?? ''
+    const parsedSize = Number.parseInt(sizeText, 10)
+    entries.push({
+      name: hrefName(href),
+      isCollection,
+      lastModified: Number.isNaN(parsedMod) ? null : parsedMod,
+      size: Number.isNaN(parsedSize) ? null : parsedSize,
+    })
+  }
+  return entries
+}
+
+/**
+ * List the immediate children of the target folder (or a sub-path within it) via
+ * `PROPFIND` Depth 1. The listing includes the queried folder itself, which is
+ * dropped so only children are returned. Throws {@link SyncError} on failure
+ * (notably `notfound` when the folder doesn't exist yet).
+ */
+export async function propfindList(cfg: SyncConfig, relPath = ''): Promise<DavEntry[]> {
+  const url = relPath ? davFileUrl(cfg, relPath) : folderUrl(cfg)
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: 'PROPFIND',
+      headers: headers(cfg, { Depth: '1', 'Content-Type': 'application/xml' }),
+      body: '<?xml version="1.0"?><d:propfind xmlns:d="DAV:"><d:prop><d:resourcetype/><d:getlastmodified/><d:getcontentlength/></d:prop></d:propfind>',
+    })
+  } catch {
+    throw fetchError()
+  }
+  if (res.status !== 207 && !res.ok) throw statusError(res.status)
+  const self = hrefName(url)
+  return parseMultistatus(await res.text()).filter((e) => e.name !== self)
+}
+
+/** Download one file's text content. Throws {@link SyncError} on failure. */
+export async function getFile(cfg: SyncConfig, relPath: string): Promise<string> {
+  let res: Response
+  try {
+    res = await fetch(davFileUrl(cfg, relPath), { method: 'GET', headers: headers(cfg, {}) })
+  } catch {
+    throw fetchError()
+  }
+  if (!res.ok) throw statusError(res.status)
+  return res.text()
+}
+
+/**
+ * Delete a file or folder. A `DELETE` on a collection removes it and everything
+ * inside recursively, so one call clears a whole session folder. `204`/`200` and
+ * `404` (already gone) are all treated as success.
+ */
+export async function deletePath(cfg: SyncConfig, relPath: string): Promise<void> {
+  let res: Response
+  try {
+    res = await fetch(davFileUrl(cfg, relPath), { method: 'DELETE', headers: headers(cfg, {}) })
+  } catch {
+    throw fetchError()
+  }
+  if (!res.ok && res.status !== 404) throw statusError(res.status)
+}
+
 /**
  * One interval file for a single session: its metadata plus the samples recorded
  * during this interval. Pretty-printed so it's readable straight from Nextcloud.

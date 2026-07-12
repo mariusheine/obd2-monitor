@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import Dexie from 'dexie'
 
-import { db, type SampleRow } from '@/storage/db'
+import { db, deleteSession, type SampleRow } from '@/storage/db'
 import {
   buildIntervalFile,
   ensureFolder,
@@ -15,6 +15,13 @@ import {
   type SyncConfig,
   type SyncErrorKind,
 } from '@/obd/sync/nextcloud'
+import {
+  deleteCloudSession,
+  fetchCloudSession,
+  listCloudSessions,
+  type CloudSessionSummary,
+  type ReassembledSession,
+} from '@/obd/sync/cloudSessions'
 
 const STORAGE_KEY = 'obd.sync.v1'
 const INTERVAL_MS = 60_000
@@ -157,20 +164,28 @@ export const useSyncStore = defineStore('sync', () => {
     let uploaded = false
     for (const s of sessions) {
       const rows = await newSamples(s.id, s.syncCursorId ?? 0)
-      if (rows.length === 0) continue
-      // All of a session's interval files live in its own subfolder.
-      await ensureFolder({ ...cfg, folder: `${cfg.folder}/${sessionFolderName(s)}` })
-      await putFile(
-        cfg,
-        intervalFilePath(s, uploadedAt),
-        'application/json',
-        buildIntervalFile(s, rows, settings.value.deviceLabel, uploadedAt),
-      )
-      // Safely in the cloud — advance the cursor and reclaim the rows. The
-      // session row (and its total sampleCount) stays for history and badges.
-      await db.sessions.update(s.id, { syncCursorId: rows[rows.length - 1]!.id })
-      await db.samples.bulkDelete(rows.map((r) => r.id))
-      uploaded = true
+      if (rows.length > 0) {
+        // All of a session's interval files live in its own subfolder.
+        await ensureFolder({ ...cfg, folder: `${cfg.folder}/${sessionFolderName(s)}` })
+        await putFile(
+          cfg,
+          intervalFilePath(s, uploadedAt),
+          'application/json',
+          buildIntervalFile(s, rows, settings.value.deviceLabel, uploadedAt),
+        )
+        // Safely in the cloud — advance the cursor and reclaim the rows.
+        s.syncCursorId = rows[rows.length - 1]!.id
+        await db.sessions.update(s.id, { syncCursorId: s.syncCursorId })
+        await db.samples.bulkDelete(rows.map((r) => r.id))
+        uploaded = true
+      }
+      // A stopped session that is fully uploaded no longer needs its local row:
+      // the cloud folder now carries it. Pruning keeps IndexedDB minimal and the
+      // Sessions view sources the drive from the cloud instead. Still-recording
+      // (endedAt null) and empty never-uploaded (cursor 0) sessions are kept.
+      if (s.endedAt !== null && (s.syncCursorId ?? 0) > 0) {
+        await deleteSession(s.id)
+      }
     }
     return uploaded
   }
@@ -206,6 +221,27 @@ export const useSyncStore = defineStore('sync', () => {
     }
   }
 
+  /** List the sessions stored in the cloud folder (empty when not configured). */
+  async function listCloud(): Promise<CloudSessionSummary[]> {
+    const cfg = syncConfig()
+    if (!cfg) return []
+    return listCloudSessions(cfg)
+  }
+
+  /** Download and reassemble one cloud session's full sample stream. */
+  async function fetchCloud(folderName: string): Promise<ReassembledSession> {
+    const cfg = syncConfig()
+    if (!cfg) throw new SyncError('notfound', 'Cloud sync is not configured')
+    return fetchCloudSession(cfg, folderName)
+  }
+
+  /** Delete one session's whole folder from the cloud. */
+  async function removeCloud(folderName: string): Promise<void> {
+    const cfg = syncConfig()
+    if (!cfg) throw new SyncError('notfound', 'Cloud sync is not configured')
+    await deleteCloudSession(cfg, folderName)
+  }
+
   function onOnline(): void {
     void tick()
   }
@@ -239,5 +275,8 @@ export const useSyncStore = defineStore('sync', () => {
     tick,
     testConnection,
     refreshPending,
+    listCloud,
+    fetchCloud,
+    removeCloud,
   }
 })

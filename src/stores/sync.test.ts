@@ -74,7 +74,7 @@ beforeEach(async () => {
 
 describe('sync engine', () => {
   it('uploads new samples into the session folder, then reclaims them locally', async () => {
-    const { id, lastId } = await seed(3)
+    const { id, lastId } = await seed(3, { endedAt: null }) // still recording
     const sync = useSyncStore()
     configure(sync)
 
@@ -94,8 +94,8 @@ describe('sync engine', () => {
   })
 
   it('writes one file per session, each in its own folder', async () => {
-    const a = await seed(2, { syncSessionId: 'aaaaaaaa-1' })
-    const b = await seed(3, { syncSessionId: 'bbbbbbbb-2' })
+    const a = await seed(2, { syncSessionId: 'aaaaaaaa-1', endedAt: null })
+    const b = await seed(3, { syncSessionId: 'bbbbbbbb-2', endedAt: null })
     const sync = useSyncStore()
     configure(sync)
 
@@ -111,7 +111,7 @@ describe('sync engine', () => {
   })
 
   it('retries next interval after a failure (no cursor advance, no reclaim)', async () => {
-    const { id, lastId } = await seed(3)
+    const { id, lastId } = await seed(3, { endedAt: null }) // still recording
     putFileMock.mockRejectedValue(new SyncError('server', 'boom'))
     const sync = useSyncStore()
     configure(sync)
@@ -175,5 +175,50 @@ describe('sync engine', () => {
     // Starting the recording brought the engine up and uploaded the backlog.
     await vi.waitFor(() => expect(putFileMock).toHaveBeenCalled())
     await session.stop()
+  })
+})
+
+describe('auto-prune of synced sessions', () => {
+  it('deletes a stopped, fully-uploaded session’s local row (cloud is source of truth)', async () => {
+    const { id } = await seed(3, { endedAt: Date.now() }) // stopped
+    const sync = useSyncStore()
+    configure(sync)
+
+    await sync.tick()
+    await vi.waitFor(() => expect(sync.lastSyncAt).not.toBeNull())
+
+    expect(putFileMock).toHaveBeenCalledTimes(1) // its tail was uploaded
+    expect(await db.sessions.get(id)).toBeUndefined() // then the row was pruned
+    expect(await db.samples.where('sessionId').equals(id).count()).toBe(0)
+    expect(sync.pendingCount).toBe(0)
+  })
+
+  it('prunes an already-synced stopped session even with no new samples', async () => {
+    const { id, lastId } = await seed(3, { endedAt: Date.now() })
+    await db.sessions.update(id, { syncCursorId: lastId }) // already uploaded earlier
+    await db.samples.where('sessionId').equals(id).delete() // and reclaimed
+    const sync = useSyncStore()
+    configure(sync)
+
+    await sync.tick()
+    await vi.waitFor(() => !sync.running)
+
+    expect(putFileMock).not.toHaveBeenCalled() // nothing new to upload
+    expect(await db.sessions.get(id)).toBeUndefined() // but the stale row is pruned
+  })
+
+  it('keeps a still-recording session, and an empty stopped one', async () => {
+    const recording = await seed(3, { endedAt: null })
+    const empty = await seed(0, { endedAt: Date.now() }) // stopped, never uploaded
+    const sync = useSyncStore()
+    configure(sync)
+
+    await sync.tick()
+    await vi.waitFor(() => !sync.running)
+
+    // Recording session survives (endedAt null) with its cursor advanced.
+    expect((await db.sessions.get(recording.id))?.syncCursorId).toBe(recording.lastId)
+    // Empty stopped session is left alone (cursor 0 → no cloud folder to fall back on).
+    expect(await db.sessions.get(empty.id)).toBeDefined()
   })
 })

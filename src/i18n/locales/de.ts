@@ -77,6 +77,12 @@ const de: typeof en = {
     syncPending: 'nicht synchronisiert',
     syncNow: 'Jetzt synchronisieren',
     syncing: 'Synchronisiere…',
+    cloudBadge: 'in der Cloud',
+    cloudMeta: '{duration} · in Nextcloud',
+    downloading: 'Wird vorbereitet…',
+    cloudError: 'Sitzungen aus der Cloud konnten nicht geladen werden. Prüfe die Verbindung in den Einstellungen.',
+    confirmDeleteCloud:
+      'Sitzung „{label}" aus Nextcloud löschen? Damit wird sie für alle Geräte aus der Cloud entfernt.',
   },
   settings: {
     title: 'Cloud-Sync',

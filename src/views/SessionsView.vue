@@ -9,27 +9,51 @@ import {
   deleteSession,
   sessionSamples,
   storageEstimate,
+  type SampleRow,
   type SessionRow,
 } from '@/storage/db'
 import {
   buildCsv,
   buildSessionJson,
   downloadText,
-  sessionFileBase,
   type PidMeta,
 } from '@/storage/export'
+import { sessionFolderName, SyncError } from '@/obd/sync/nextcloud'
+import type { CloudSessionSummary, ReassembledSession } from '@/obd/sync/cloudSessions'
 import { useSessionStore } from '@/stores/session'
 import { useSyncStore } from '@/stores/sync'
+
+/** One row in the merged list: a local record, a cloud folder, or (briefly) both. */
+interface Entry {
+  key: string
+  startedAt: number
+  local: SessionRow | null
+  cloud: CloudSessionSummary | null
+}
 
 const session = useSessionStore()
 const sync = useSyncStore()
 const { active: syncActive, pendingIds, running: syncRunning } = storeToRefs(sync)
 const { t, locale } = useI18n({ useScope: 'global' })
-const sessions = ref<SessionRow[]>([])
+const localSessions = ref<SessionRow[]>([])
+const cloudList = ref<CloudSessionSummary[]>([])
 const usage = ref<{ usage: number; quota: number } | null>(null)
-const busyId = ref<number | null>(null)
+const busyKey = ref<string | null>(null)
+const cloudError = ref<boolean>(false)
 
-const isSynced = (s: SessionRow): boolean => !pendingIds.value.includes(s.id)
+const entries = computed<Entry[]>(() => {
+  const map = new Map<string, Entry>()
+  for (const s of localSessions.value) {
+    const key = sessionFolderName(s)
+    map.set(key, { key, startedAt: s.startedAt, local: s, cloud: null })
+  }
+  for (const c of cloudList.value) {
+    const existing = map.get(c.folderName)
+    if (existing) existing.cloud = c
+    else map.set(c.folderName, { key: c.folderName, startedAt: c.startedAt, local: null, cloud: c })
+  }
+  return Array.from(map.values()).sort((a, b) => b.startedAt - a.startedAt)
+})
 
 const resolvePid = (id: string): PidMeta | undefined => {
   const def = getPid(id)
@@ -39,23 +63,56 @@ const resolvePid = (id: string): PidMeta | undefined => {
 const transportLabel = (kind: string): string =>
   kind === 'ble' ? t('sessions.transport.ble') : t('sessions.transport.mock')
 
+async function loadCloud(): Promise<void> {
+  if (!syncActive.value) {
+    cloudList.value = []
+    return
+  }
+  cloudError.value = false
+  try {
+    cloudList.value = await sync.listCloud()
+  } catch {
+    cloudError.value = true
+  }
+}
+
 async function reload(): Promise<void> {
-  sessions.value = await db.sessions.orderBy('startedAt').reverse().toArray()
+  localSessions.value = await db.sessions.orderBy('startedAt').reverse().toArray()
   usage.value = await storageEstimate()
   await sync.refreshPending()
+  await loadCloud()
+}
+
+async function syncNow(): Promise<void> {
+  await sync.tick()
+  await reload()
 }
 
 function fmtDate(ms: number): string {
   return new Date(ms).toLocaleString(locale.value)
 }
 
-function fmtDuration(s: SessionRow): string {
-  const end = s.endedAt ?? Date.now()
-  const total = Math.max(0, Math.floor((end - s.startedAt) / 1000))
+function fmtDuration(startedAt: number, endedAt: number): string {
+  const total = Math.max(0, Math.floor((endedAt - startedAt) / 1000))
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
   const sec = total % 60
   return h > 0 ? `${h}h ${m}m` : `${m}m ${sec}s`
+}
+
+function localMeta(s: SessionRow): string {
+  return t('sessions.meta', {
+    duration: fmtDuration(s.startedAt, s.endedAt ?? Date.now()),
+    samples: s.sampleCount.toLocaleString(locale.value),
+    pids: s.pidIds.length,
+    transport: transportLabel(s.transportKind),
+  })
+}
+
+function cloudMeta(c: CloudSessionSummary): string {
+  return t('sessions.cloudMeta', {
+    duration: fmtDuration(c.startedAt, c.lastActivityAt ?? c.startedAt),
+  })
 }
 
 function fmtBytes(bytes: number): string {
@@ -75,35 +132,75 @@ const usagePct = computed(() => {
   return Math.min(100, (usage.value.usage / usage.value.quota) * 100)
 })
 
-async function exportCsv(s: SessionRow): Promise<void> {
-  busyId.value = s.id
-  try {
-    const rows = await sessionSamples(s.id)
-    downloadText(`${sessionFileBase(s)}.csv`, 'text/csv', buildCsv(rows, resolvePid))
-  } finally {
-    busyId.value = null
+/** Reassembled cloud samples as SampleRow-shaped objects for the export builders. */
+function toRows(r: ReassembledSession): SampleRow[] {
+  return r.samples.map((s) => ({ id: 0, sessionId: 0, ts: s.ts, pidId: s.pidId, value: s.value }))
+}
+
+/** A SessionRow-shaped stand-in so a cloud drive can reuse buildSessionJson. */
+function synthRow(r: ReassembledSession): SessionRow {
+  return {
+    id: 0,
+    note: '',
+    startedAt: r.startedAt,
+    endedAt: r.endedAt,
+    transportKind: r.transportKind,
+    pidIds: r.pidIds,
+    sampleCount: r.samples.length,
+    syncSessionId: r.syncSessionId,
+    syncCursorId: 0,
   }
 }
 
-async function exportJson(s: SessionRow): Promise<void> {
-  busyId.value = s.id
+async function exportEntry(e: Entry, kind: 'csv' | 'json'): Promise<void> {
+  busyKey.value = e.key
   try {
-    const rows = await sessionSamples(s.id)
-    downloadText(`${sessionFileBase(s)}.json`, 'application/json', buildSessionJson(s, rows))
+    // A drive with a cloud folder is the source of truth (its local samples were
+    // reclaimed after upload), so rebuild it from the cloud; otherwise export local.
+    if (e.cloud) {
+      const r = await sync.fetchCloud(e.cloud.folderName)
+      const rows = toRows(r)
+      const content = kind === 'csv' ? buildCsv(rows, resolvePid) : buildSessionJson(synthRow(r), rows)
+      const mime = kind === 'csv' ? 'text/csv' : 'application/json'
+      downloadText(`${e.cloud.folderName}.${kind}`, mime, content)
+    } else if (e.local) {
+      const rows = await sessionSamples(e.local.id)
+      const content = kind === 'csv' ? buildCsv(rows, resolvePid) : buildSessionJson(e.local, rows)
+      const mime = kind === 'csv' ? 'text/csv' : 'application/json'
+      downloadText(`${e.key}.${kind}`, mime, content)
+    }
+  } catch (err) {
+    cloudError.value = err instanceof SyncError
   } finally {
-    busyId.value = null
+    busyKey.value = null
   }
 }
 
-async function remove(s: SessionRow): Promise<void> {
-  if (!confirm(t('sessions.confirmDelete', { label: fmtDate(s.startedAt), count: s.sampleCount })))
-    return
-  await deleteSession(s.id)
-  await reload()
+async function remove(e: Entry): Promise<void> {
+  const label = fmtDate(e.startedAt)
+  const message = e.cloud
+    ? t('sessions.confirmDeleteCloud', { label })
+    : t('sessions.confirmDelete', { label, count: e.local?.sampleCount ?? 0 })
+  if (!confirm(message)) return
+  busyKey.value = e.key
+  try {
+    if (e.cloud) await sync.removeCloud(e.cloud.folderName)
+    if (e.local) await deleteSession(e.local.id)
+    await reload()
+  } catch (err) {
+    cloudError.value = err instanceof SyncError
+  } finally {
+    busyKey.value = null
+  }
 }
 
-const isActive = (s: SessionRow): boolean =>
-  session.recording && session.currentId === s.id
+const isActive = (e: Entry): boolean =>
+  e.local !== null && session.recording && session.currentId === e.local.id
+
+const isSynced = (e: Entry): boolean => (e.local ? !pendingIds.value.includes(e.local.id) : true)
+
+const exportDisabled = (e: Entry): boolean =>
+  e.cloud === null && (e.local === null || e.local.sampleCount === 0)
 
 onMounted(reload)
 </script>
@@ -111,10 +208,12 @@ onMounted(reload)
 <template>
   <div class="stack">
     <div v-if="syncActive" class="row" style="justify-content: flex-end">
-      <button :disabled="syncRunning" @click="sync.tick()">
+      <button :disabled="syncRunning" @click="syncNow">
         {{ syncRunning ? t('sessions.syncing') : t('sessions.syncNow') }}
       </button>
     </div>
+
+    <div v-if="cloudError" class="banner warn">{{ t('sessions.cloudError') }}</div>
 
     <div v-if="usage" class="card">
       <div class="row" style="justify-content: space-between">
@@ -127,7 +226,7 @@ onMounted(reload)
     </div>
 
     <i18n-t
-      v-if="sessions.length === 0"
+      v-if="entries.length === 0"
       keypath="sessions.noSessions"
       scope="global"
       tag="div"
@@ -138,34 +237,31 @@ onMounted(reload)
       </template>
     </i18n-t>
 
-    <div v-for="s in sessions" :key="s.id" class="card session">
+    <div v-for="e in entries" :key="e.key" class="card session">
       <div class="session-head">
         <div>
-          <strong>{{ fmtDate(s.startedAt) }}</strong>
-          <span v-if="isActive(s)" class="rec-pill">{{ t('sessions.recordingPill') }}</span>
-          <span v-else-if="syncActive" class="sync-pill" :class="{ pending: !isSynced(s) }">
-            {{ isSynced(s) ? t('sessions.syncSynced') : t('sessions.syncPending') }}
+          <strong>{{ fmtDate(e.startedAt) }}</strong>
+          <span v-if="isActive(e)" class="rec-pill">{{ t('sessions.recordingPill') }}</span>
+          <span v-else-if="e.cloud" class="cloud-pill">{{ t('sessions.cloudBadge') }}</span>
+          <span v-else-if="syncActive" class="sync-pill" :class="{ pending: !isSynced(e) }">
+            {{ isSynced(e) ? t('sessions.syncSynced') : t('sessions.syncPending') }}
           </span>
         </div>
       </div>
       <div class="session-meta muted">
-        {{
-          t('sessions.meta', {
-            duration: fmtDuration(s),
-            samples: s.sampleCount.toLocaleString(locale),
-            pids: s.pidIds.length,
-            transport: transportLabel(s.transportKind),
-          })
-        }}
+        <template v-if="e.local">{{ localMeta(e.local) }}</template>
+        <template v-else-if="e.cloud">{{ cloudMeta(e.cloud) }}</template>
       </div>
       <div class="row">
-        <button :disabled="busyId === s.id || s.sampleCount === 0" @click="exportCsv(s)">
-          {{ t('sessions.exportCsv') }}
+        <button :disabled="busyKey === e.key || exportDisabled(e)" @click="exportEntry(e, 'csv')">
+          {{ busyKey === e.key ? t('sessions.downloading') : t('sessions.exportCsv') }}
         </button>
-        <button :disabled="busyId === s.id || s.sampleCount === 0" @click="exportJson(s)">
+        <button :disabled="busyKey === e.key || exportDisabled(e)" @click="exportEntry(e, 'json')">
           {{ t('sessions.exportJson') }}
         </button>
-        <button :disabled="isActive(s)" @click="remove(s)">{{ t('sessions.delete') }}</button>
+        <button :disabled="isActive(e) || busyKey === e.key" @click="remove(e)">
+          {{ t('sessions.delete') }}
+        </button>
       </div>
     </div>
   </div>
@@ -218,5 +314,14 @@ onMounted(reload)
 .sync-pill.pending {
   background: rgba(234, 179, 8, 0.15);
   color: #fde047;
+}
+.cloud-pill {
+  margin-left: 0.5rem;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
 </style>
