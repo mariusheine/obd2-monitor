@@ -10,7 +10,7 @@ import DtcView from '@/views/DtcView.vue'
 import LiveView from '@/views/LiveView.vue'
 import SessionsView from '@/views/SessionsView.vue'
 import { i18n, setLocale } from './index'
-import { dtcDescription, pidName, pidShort } from './labels'
+import { dtcDescription, pidDesc, pidName, pidShort } from './labels'
 
 // uPlot touches matchMedia/canvas at import; stub it like the chart unit test.
 vi.mock('uplot', () => ({
@@ -35,6 +35,26 @@ describe('label helpers (dotted catalog ids / DTC codes)', () => {
     expect(pidShort(rpm as never)).toBe('Drehzahl')
     const unknown = { id: 'std.doesNotExist', name: 'Some name', shortName: 'X' }
     expect(pidName(unknown as never)).toBe('Some name')
+  })
+
+  it('resolves plain-language PID descriptions, empty for unknown ids', () => {
+    setLocale('de')
+    const regen = { id: 'fiat.dpf.regenActive', name: 'x', shortName: 'y' }
+    expect(pidDesc(regen as never)).toBe('Ob der DPF gerade aktiv den angesammelten Ruß abbrennt.')
+    setLocale('en')
+    expect(pidDesc(regen as never)).toBe(
+      'Whether the DPF is actively burning off accumulated soot right now.',
+    )
+    const unknown = { id: 'std.doesNotExist', name: 'x', shortName: 'y' }
+    expect(pidDesc(unknown as never)).toBe('')
+  })
+
+  it('renames the confusing DPF short labels away from bare "Regen"', () => {
+    const regen = { id: 'fiat.dpf.regenActive', name: 'x', shortName: 'y' }
+    setLocale('en')
+    expect(pidShort(regen as never)).toBe('Regenerating')
+    setLocale('de')
+    expect(pidShort(regen as never)).toBe('Regeneration')
   })
 
   it('translates DTC descriptions with a graceful fallback', () => {

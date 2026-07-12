@@ -23,6 +23,11 @@ export function pidShort(pid: PidDefinition): string {
   return exists(key) ? translate(key) : pid.shortName
 }
 
+export function pidDesc(pid: PidDefinition): string {
+  const key = `${pidKey(pid.id)}.desc`
+  return exists(key) ? translate(key) : ''
+}
+
 export function dtcDescription(code: string, fallback?: string): string {
   const key = `dtcDesc.${code.toUpperCase()}`
   if (exists(key)) return translate(key)

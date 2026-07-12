@@ -1,5 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+
+import InfoPopover from './InfoPopover.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -9,10 +11,14 @@ const props = withDefaults(
     min: number
     max: number
     color: string
+    name?: string
+    description?: string
     experimental?: boolean
   }>(),
-  { value: undefined, experimental: false },
+  { value: undefined, name: '', description: '', experimental: false },
 )
+
+const open = ref(false)
 
 const R = 52
 const CX = 60
@@ -35,7 +41,18 @@ const valueText = computed<string>(() => {
 </script>
 
 <template>
-  <div class="gauge" :class="{ experimental }">
+  <div
+    class="gauge"
+    :class="{ experimental }"
+    role="button"
+    tabindex="0"
+    :title="name || label"
+    :aria-expanded="open"
+    @click="open = !open"
+    @keydown.enter.prevent="open = !open"
+    @keydown.space.prevent="open = !open"
+  >
+    <span class="info-hint" aria-hidden="true">ⓘ</span>
     <svg viewBox="0 0 120 74" class="gauge-svg" role="img" :aria-label="`${label}: ${valueText} ${unit}`">
       <path :d="bgPath" fill="none" stroke="var(--surface-2)" stroke-width="9" stroke-linecap="round" />
       <path
@@ -49,16 +66,32 @@ const valueText = computed<string>(() => {
     </svg>
     <div class="gauge-value">{{ valueText }}<span class="gauge-unit">{{ unit }}</span></div>
     <div class="gauge-label">{{ label }}</div>
+    <InfoPopover
+      v-if="open"
+      :title="name || label"
+      :description="description"
+      @close="open = false"
+    />
   </div>
 </template>
 
 <style scoped>
 .gauge {
+  position: relative;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.75rem 0.75rem 0.9rem;
   text-align: center;
+  cursor: pointer;
+}
+.info-hint {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.45rem;
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  opacity: 0.5;
 }
 .gauge.experimental {
   border-style: dashed;

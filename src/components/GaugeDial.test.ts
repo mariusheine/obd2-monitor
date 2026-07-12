@@ -36,4 +36,24 @@ describe('GaugeDial', () => {
     expect(w.text()).toContain('—')
     expect(filledLength(w)).toBe(0)
   })
+
+  it('reveals the full name + description on tap', async () => {
+    const w = mount(GaugeDial, {
+      props: {
+        label: 'Exhaust temp',
+        value: 320,
+        unit: '°C',
+        min: 0,
+        max: 900,
+        color: '#000',
+        name: 'Exhaust gas temperature (DPF inlet)',
+        description: 'Exhaust Gas Temperature at the DPF inlet; rises sharply during a regeneration.',
+      },
+    })
+    expect(w.text()).not.toContain('rises sharply')
+
+    await w.trigger('click')
+    expect(w.text()).toContain('Exhaust gas temperature (DPF inlet)')
+    expect(w.text()).toContain('rises sharply')
+  })
 })

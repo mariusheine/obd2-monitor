@@ -17,8 +17,28 @@ describe('ValueCard', () => {
   })
 
   it('highlights an active boolean state', () => {
-    const w = mount(ValueCard, { props: { label: 'Regen', display: 'ON', highlight: true } })
+    const w = mount(ValueCard, { props: { label: 'Regenerating', display: 'ON', highlight: true } })
     expect(w.text()).toContain('ON')
     expect(w.classes()).toContain('highlight')
+  })
+
+  it('reveals the name + description on tap and hides them again', async () => {
+    const w = mount(ValueCard, {
+      props: {
+        label: 'Regenerating',
+        display: 'ON',
+        name: 'DPF regeneration active',
+        description: 'Whether the DPF is actively burning off accumulated soot right now.',
+      },
+    })
+    expect(w.text()).not.toContain('actively burning off')
+
+    await w.trigger('click')
+    expect(w.text()).toContain('DPF regeneration active')
+    expect(w.text()).toContain('actively burning off')
+
+    // Backdrop click dismisses the popover.
+    await w.get('.info-backdrop').trigger('click')
+    expect(w.text()).not.toContain('actively burning off')
   })
 })

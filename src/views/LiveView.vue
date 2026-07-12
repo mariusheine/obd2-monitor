@@ -7,7 +7,7 @@ import { RouterLink } from 'vue-router'
 import GaugeDial from '@/components/GaugeDial.vue'
 import TimeSeriesChart from '@/components/TimeSeriesChart.vue'
 import ValueCard from '@/components/ValueCard.vue'
-import { pidName, pidShort } from '@/i18n/labels'
+import { pidDesc, pidName, pidShort } from '@/i18n/labels'
 import { pidColor } from '@/lib/palette'
 import type { PidDefinition } from '@/obd/pids/types'
 import { useConfigStore } from '@/stores/config'
@@ -108,6 +108,8 @@ onBeforeUnmount(() => {
           v-for="p in gaugePids"
           :key="p.id"
           :label="pidShort(p)"
+          :name="pidName(p)"
+          :description="pidDesc(p)"
           :value="latest[p.id]"
           :unit="p.unit"
           :min="p.min"
@@ -134,6 +136,8 @@ onBeforeUnmount(() => {
           v-for="p in cardPids"
           :key="p.id"
           :label="pidShort(p)"
+          :name="pidName(p)"
+          :description="pidDesc(p)"
           v-bind="displayFor(p)"
           :experimental="p.experimental"
         />
