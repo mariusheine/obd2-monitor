@@ -4,6 +4,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { db, type NewSession } from '@/storage/db'
 import { ensureFolder, putFile, SyncError } from '@/obd/sync/nextcloud'
+import { useSessionStore } from './session'
 import { useSyncStore } from './sync'
 
 // Keep everything real except the calls that hit the network.
@@ -150,5 +151,29 @@ describe('sync engine', () => {
     // enabled stays false
     await sync.tick()
     expect(putFileMock).not.toHaveBeenCalled()
+  })
+
+  it('starts syncing as soon as a recording starts (not only when a tab opens)', async () => {
+    // Pending data from an earlier drive, with sync already configured + enabled.
+    await seed(3)
+    localStorage.setItem(
+      'obd.sync.v1',
+      JSON.stringify({
+        enabled: true,
+        serverUrl: 'https://cloud.example.com',
+        username: 'van-obd',
+        appPassword: 'pw',
+        folder: 'obd',
+        deviceLabel: '',
+      }),
+    )
+
+    // Begin a new recording without ever touching the sync store or a view.
+    const session = useSessionStore()
+    await session.start()
+
+    // Starting the recording brought the engine up and uploaded the backlog.
+    await vi.waitFor(() => expect(putFileMock).toHaveBeenCalled())
+    await session.stop()
   })
 })

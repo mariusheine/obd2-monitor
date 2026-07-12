@@ -10,6 +10,19 @@ const FLUSH_INTERVAL_MS = 1500
 const FLUSH_THRESHOLD = 500
 
 /**
+ * Instantiate the cloud-sync store (which starts its upload interval) and give
+ * it an immediate tick. Called on record start so a drive syncs from the moment
+ * it begins — not only once the Sessions/Settings tab is first opened. The store
+ * is dynamically imported so its WebDAV/Dexie code stays out of the initial
+ * bundle; it's a no-op when sync is unconfigured or disabled.
+ */
+function nudgeSync(): void {
+  void import('./sync')
+    .then(({ useSyncStore }) => useSyncStore().tick())
+    .catch(() => undefined)
+}
+
+/**
  * Records the live sample stream into IndexedDB as a drive session. Samples are
  * buffered and written in batches (by count or on an interval) to keep IndexedDB
  * writes off the hot path during a drive.
@@ -67,6 +80,8 @@ export const useSessionStore = defineStore('session', () => {
     recording.value = true
     unsubscribe = live.addSampleListener(onSample)
     flushTimer = setInterval(() => void flush(), FLUSH_INTERVAL_MS)
+    // Start the cloud-sync engine now so uploads run during the drive.
+    nudgeSync()
   }
 
   async function stop(): Promise<void> {
@@ -82,11 +97,8 @@ export const useSessionStore = defineStore('session', () => {
     }
     currentId.value = null
     startedAt.value = null
-    // Nudge the cloud sync engine to upload the tail promptly (best-effort).
-    // Dynamically imported so the WebDAV client only loads once a drive ends.
-    void import('./sync')
-      .then(({ useSyncStore }) => useSyncStore().tick())
-      .catch(() => undefined)
+    // Nudge the sync engine to upload the tail promptly (best-effort).
+    nudgeSync()
   }
 
   return { recording, currentId, startedAt, sampleCount, start, stop }
