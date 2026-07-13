@@ -6,44 +6,53 @@ import { RouterLink } from 'vue-router'
 
 import { dtcDescription, dtcSystemLabel } from '@/i18n/labels'
 import type { Dtc } from '@/obd/dtc/decode'
+import type { ActiveDtc } from '@/obd/dtc/monitor'
 import { useConnectionStore } from '@/stores/connection'
 import { useDtcStore } from '@/stores/dtc'
+import { useDtcMonitorStore } from '@/stores/dtcMonitor'
 
 const conn = useConnectionStore()
 const dtc = useDtcStore()
+const monitor = useDtcMonitorStore()
 const { t, locale } = useI18n({ useScope: 'global' })
 const { status, elm } = storeToRefs(conn)
 const { stored, pending, permanent, loading, clearing, error, hasRead, lastReadAt, total } =
   storeToRefs(dtc)
+const { active, recentEvents, lastPollAt, lastError, monitoring } = storeToRefs(monitor)
 
 const connected = computed(() => status.value === 'connected')
 
+// While a drive is recording the DTC monitor polls continuously, so the page
+// reflects its live `active` set (auto-updating); otherwise it falls back to a
+// manual one-shot read.
+const grouped = computed<Record<ActiveDtc['status'], ActiveDtc[]>>(() => {
+  const g: Record<ActiveDtc['status'], ActiveDtc[]> = { stored: [], pending: [], permanent: [] }
+  for (const d of active.value) g[d.status].push(d)
+  return g
+})
+
+const showData = computed(() => monitoring.value || hasRead.value)
+
 interface Section {
-  key: string
+  key: 'stored' | 'pending' | 'permanent'
   title: string
-  codes: Dtc[]
+  codes: (Dtc | ActiveDtc)[]
   note: string
 }
-const sections = computed<Section[]>(() => [
-  {
-    key: 'stored',
-    title: t('dtc.sections.storedTitle'),
-    codes: stored.value,
-    note: t('dtc.sections.storedNote'),
-  },
-  {
-    key: 'pending',
-    title: t('dtc.sections.pendingTitle'),
-    codes: pending.value,
-    note: t('dtc.sections.pendingNote'),
-  },
-  {
-    key: 'permanent',
-    title: t('dtc.sections.permanentTitle'),
-    codes: permanent.value,
-    note: t('dtc.sections.permanentNote'),
-  },
-])
+const sections = computed<Section[]>(() => {
+  const src = monitoring.value
+    ? grouped.value
+    : { stored: stored.value, pending: pending.value, permanent: permanent.value }
+  return [
+    { key: 'stored', title: t('dtc.sections.storedTitle'), codes: src.stored, note: t('dtc.sections.storedNote') },
+    { key: 'pending', title: t('dtc.sections.pendingTitle'), codes: src.pending, note: t('dtc.sections.pendingNote') },
+    { key: 'permanent', title: t('dtc.sections.permanentTitle'), codes: src.permanent, note: t('dtc.sections.permanentNote') },
+  ]
+})
+
+function fmtTime(ts: number): string {
+  return new Date(ts).toLocaleTimeString(locale.value)
+}
 
 function readCodes(): void {
   if (elm.value) void dtc.readAll(elm.value)
@@ -65,25 +74,53 @@ function clearCodes(): void {
 
     <template v-else>
       <div class="row">
-        <button class="primary" :disabled="loading" @click="readCodes">
+        <span v-if="monitoring" class="live-indicator">
+          <span class="live-dot"></span>{{ t('dtc.live') }}
+        </span>
+        <button v-else class="primary" :disabled="loading" @click="readCodes">
           {{ loading ? t('dtc.reading') : t('dtc.readCodes') }}
         </button>
-        <button v-if="hasRead" class="rec-btn" :disabled="clearing" @click="clearCodes">
+        <button v-if="showData" class="rec-btn" :disabled="clearing" @click="clearCodes">
           {{ clearing ? t('dtc.clearing') : t('dtc.clearCodes') }}
         </button>
-        <span v-if="lastReadAt" class="muted">
-          {{ t('dtc.codeCount', total) }} ·
-          {{ t('dtc.readAt', { time: new Date(lastReadAt).toLocaleTimeString(locale) }) }}
+        <span v-if="monitoring" class="muted">
+          {{ t('dtc.codeCount', active.length) }}<template v-if="lastPollAt">
+            · {{ t('dtc.updatedAt', { time: fmtTime(lastPollAt) }) }}</template>
+        </span>
+        <span v-else-if="lastReadAt" class="muted">
+          {{ t('dtc.codeCount', total) }} · {{ t('dtc.readAt', { time: fmtTime(lastReadAt) }) }}
         </span>
       </div>
 
-      <div v-if="error" class="banner danger">{{ error }}</div>
+      <div v-if="error || lastError" class="banner danger">{{ error || lastError }}</div>
 
-      <div v-if="!hasRead" class="card muted">
+      <div v-if="!showData" class="card muted">
         {{ t('dtc.intro') }}
       </div>
 
-      <section v-for="s in sections" v-else :key="s.key" class="card stack">
+      <template v-else>
+        <section v-if="recentEvents.length" class="card stack">
+          <div class="row" style="justify-content: space-between">
+            <strong>{{ t('dtc.recentTitle') }}</strong>
+            <span class="muted">{{ recentEvents.length }}</span>
+          </div>
+          <p class="muted section-note">{{ t('dtc.recentNote') }}</p>
+          <ul class="dtc-list">
+            <li v-for="(e, i) in recentEvents" :key="`${i}-${e.ts}-${e.code}`" class="dtc-row">
+              <span class="event-kind" :class="e.kind">{{ e.kind === 'appeared' ? '⚠' : '✓' }}</span>
+              <span class="dtc-code" :class="`sys-${e.system}`">{{ e.code }}</span>
+              <div class="dtc-info">
+                <div>{{ dtcDescription(e.code, e.description) }}</div>
+                <div class="muted dtc-tags">
+                  {{ e.kind === 'appeared' ? t('dtc.eventAppeared') : t('dtc.eventCleared') }} ·
+                  {{ t(`dtc.status.${e.status}`) }} · {{ fmtTime(e.ts) }}
+                </div>
+              </div>
+            </li>
+          </ul>
+        </section>
+
+        <section v-for="s in sections" :key="s.key" class="card stack">
         <div class="row" style="justify-content: space-between">
           <strong>{{ s.title }}</strong>
           <span class="muted">{{ s.codes.length }}</span>
@@ -104,7 +141,8 @@ function clearCodes(): void {
             </div>
           </li>
         </ul>
-      </section>
+        </section>
+      </template>
 
       <i18n-t keypath="dtc.safe" scope="global" tag="div" class="banner warn">
         <template #clearing>
@@ -161,5 +199,43 @@ function clearCodes(): void {
 .rec-btn {
   border-color: var(--danger);
   color: #fca5a5;
+}
+.live-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: #86efac;
+  font-weight: 600;
+}
+.live-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #22c55e;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.event-kind {
+  font-size: 1rem;
+  line-height: 1.6;
+}
+.event-kind.appeared {
+  color: #fbbf24;
+}
+.event-kind.cleared {
+  color: #86efac;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
 }
 </style>
