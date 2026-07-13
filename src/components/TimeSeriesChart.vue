@@ -2,18 +2,17 @@
 import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 
 import { CHART_INK, CHART_MARKER } from '@/lib/palette'
+import {
+  renderTooltipHtml,
+  tooltipModelAt,
+  type ChartMarker,
+} from '@/lib/chartTooltip'
 import type { TimeSeries } from '@/lib/TimeSeries'
 
-/** A DTC state change to annotate on the timeline, on the same clock as samples. */
-export interface ChartMarker {
-  /** Epoch milliseconds. */
-  ts: number
-  kind: 'appeared' | 'cleared'
-  /** Trouble code, e.g. `P2002`, drawn as a label on the marker line. */
-  code: string
-}
+export type { ChartMarker }
 
 const props = defineProps<{
   series: TimeSeries
@@ -24,6 +23,8 @@ const props = defineProps<{
   min?: number
   max?: number
   markers?: readonly ChartMarker[]
+  /** This PID's poll interval (ms); the tooltip surfaces DTC events within 2 of these. */
+  intervalMs: number
 }>()
 
 const CHART_HEIGHT = 150
@@ -31,13 +32,21 @@ const container = ref<HTMLDivElement | null>(null)
 let chart: uPlot | null = null
 let resizeObserver: ResizeObserver | null = null
 let rafId = 0
+/** HTML tooltip appended to the uPlot overlay on init; shown while hovering a point. */
+let tooltip: HTMLDivElement | null = null
+
+const { locale } = useI18n({ useScope: 'global' })
+
+/** Same rounding the header uses, shared with the hover tooltip. */
+function formatValue(v: number): string {
+  return Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1)
+}
 
 const lastText = computed<string>(() => {
   void props.revision // re-evaluate whenever a new sample arrives
   const v = props.series.last()
   if (v === undefined) return '—'
-  const rounded = Math.abs(v) >= 100 ? v.toFixed(0) : v.toFixed(1)
-  return `${rounded} ${props.unit}`
+  return `${formatValue(v)} ${props.unit}`
 })
 
 function buildData(): uPlot.AlignedData {
@@ -92,6 +101,67 @@ function drawMarkers(u: uPlot): void {
   ctx.restore()
 }
 
+/** Create the hover-tooltip element and park it in the plot overlay (hidden). */
+function initTooltip(u: uPlot): void {
+  const el = document.createElement('div')
+  el.className = 'chart-tooltip'
+  el.style.display = 'none'
+  u.over.appendChild(el)
+  tooltip = el
+}
+
+/**
+ * On every cursor move, show the value + timestamp of the sample nearest the
+ * cursor and any DTC events whose marker line is right there. uPlot gives us the
+ * closest data index (`cursor.idx`) and the cursor's pixel position relative to
+ * the plot area; `valToPos` maps marker times into that same space so we can
+ * pixel-match them. The tooltip is hidden when the cursor leaves the plot.
+ */
+function updateTooltip(u: uPlot): void {
+  const el = tooltip
+  if (!el) return
+  const idx = u.cursor.idx
+  const left = u.cursor.left ?? -1
+  if (idx == null || left < 0) {
+    el.style.display = 'none'
+    return
+  }
+  const model = tooltipModelAt(props.series, idx, props.markers, props.intervalMs)
+  if (!model) {
+    el.style.display = 'none'
+    return
+  }
+  el.innerHTML = renderTooltipHtml(model, {
+    unit: props.unit,
+    color: props.color,
+    appearedColor: CHART_MARKER.appeared,
+    clearedColor: CHART_MARKER.cleared,
+    formatValue,
+    formatTime: (ts) => new Date(ts).toLocaleTimeString(locale.value),
+  })
+  el.style.display = 'block'
+  positionTooltip(u, el, left, u.cursor.top ?? 0)
+}
+
+/**
+ * Place the tooltip next to the cursor, clamped inside the plot overlay (which
+ * clips overflow): prefer above-right, flip when it would spill past an edge.
+ */
+function positionTooltip(u: uPlot, el: HTMLDivElement, left: number, top: number): void {
+  const pad = 8
+  const overW = u.over.clientWidth
+  const overH = u.over.clientHeight
+  const w = el.offsetWidth
+  const h = el.offsetHeight
+  let x = left + pad
+  if (x + w > overW) x = left - pad - w
+  x = Math.max(0, Math.min(x, Math.max(0, overW - w)))
+  let y = top - h - pad
+  if (y < 0) y = top + pad
+  y = Math.max(0, Math.min(y, Math.max(0, overH - h)))
+  el.style.transform = `translate(${x}px, ${y}px)`
+}
+
 function makeOptions(width: number): uPlot.Options {
   const axisStyle = {
     stroke: CHART_INK.axis,
@@ -117,7 +187,9 @@ function makeOptions(width: number): uPlot.Options {
       {},
       { label: props.label, stroke: props.color, width: 2, points: { show: false } },
     ],
-    plugins: [{ hooks: { draw: drawMarkers } }],
+    plugins: [
+      { hooks: { init: initTooltip, setCursor: updateTooltip, draw: drawMarkers } },
+    ],
   }
 }
 
@@ -152,8 +224,9 @@ watch(() => props.markers, scheduleDraw)
 onBeforeUnmount(() => {
   if (rafId) cancelAnimationFrame(rafId)
   resizeObserver?.disconnect()
-  chart?.destroy()
+  chart?.destroy() // removes the overlay (and the tooltip child) from the DOM
   chart = null
+  tooltip = null
 })
 </script>
 
@@ -191,5 +264,56 @@ onBeforeUnmount(() => {
 .chart-body {
   width: 100%;
   height: 150px;
+}
+</style>
+
+<!-- Non-scoped: the tooltip is created imperatively inside the uPlot overlay, so
+     it never carries this SFC's scope attribute. Classes are prefixed to stay
+     out of the global namespace. -->
+<style>
+.chart-tooltip {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none;
+  min-width: 4rem;
+  max-width: 15rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  font-size: 0.75rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.chart-tooltip .chart-tt-time {
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.chart-tooltip .chart-tt-value {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.chart-tooltip .chart-tt-unit {
+  font-weight: 400;
+  color: var(--text-dim);
+}
+.chart-tooltip .chart-tt-dtc {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-top: 0.25rem;
+}
+.chart-tooltip .chart-tt-dot {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+.chart-tooltip .chart-tt-code {
+  font-weight: 600;
+  color: var(--text);
 }
 </style>

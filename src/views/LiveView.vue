@@ -9,6 +9,7 @@ import TimeSeriesChart from '@/components/TimeSeriesChart.vue'
 import ValueCard from '@/components/ValueCard.vue'
 import { pidDesc, pidName, pidShort } from '@/i18n/labels'
 import { CHART_MARKER, pidColor } from '@/lib/palette'
+import { defaultPollMs } from '@/obd/acquisition/scheduler'
 import type { PidDefinition } from '@/obd/pids/types'
 import { useConfigStore } from '@/stores/config'
 import { useConnectionStore } from '@/stores/connection'
@@ -51,6 +52,11 @@ const chartPids = computed(() =>
   activePids.value.filter((p) => CHART_IDS.includes(p.id)).sort(orderBy(CHART_IDS)),
 )
 const cardPids = computed(() => activePids.value.filter((p) => !GAUGE_IDS.includes(p.id)))
+
+/** This PID's configured poll interval (ms), for the chart's DTC-in-tooltip window. */
+function intervalFor(p: PidDefinition): number {
+  return config.specs.find((s) => s.pidId === p.id)?.intervalMs ?? defaultPollMs(p.category)
+}
 
 const nowTick = ref(Date.now())
 let tickTimer: ReturnType<typeof setInterval> | undefined
@@ -151,6 +157,7 @@ onBeforeUnmount(() => {
           :label="pidName(p)"
           :unit="p.unit"
           :color="pidColor(p)"
+          :interval-ms="intervalFor(p)"
           :markers="dtcEvents"
         />
       </section>
