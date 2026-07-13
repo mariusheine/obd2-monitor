@@ -48,10 +48,16 @@ const orderBy = (ids: string[]) => (a: PidDefinition, b: PidDefinition) =>
 const gaugePids = computed(() =>
   activePids.value.filter((p) => GAUGE_IDS.includes(p.id)).sort(orderBy(GAUGE_IDS)),
 )
-const chartPids = computed(() =>
-  activePids.value.filter((p) => CHART_IDS.includes(p.id)).sort(orderBy(CHART_IDS)),
-)
 const cardPids = computed(() => activePids.value.filter((p) => !GAUGE_IDS.includes(p.id)))
+// Chart every card PID (so its history is visible) plus the featured CHART_IDS
+// (which also covers the gauge PIDs); featured first in their curated order.
+const chartPids = computed(() => {
+  const featured = activePids.value
+    .filter((p) => CHART_IDS.includes(p.id))
+    .sort(orderBy(CHART_IDS))
+  const rest = cardPids.value.filter((p) => !CHART_IDS.includes(p.id))
+  return [...featured, ...rest]
+})
 
 /** This PID's configured poll interval (ms), for the chart's DTC-in-tooltip window. */
 function intervalFor(p: PidDefinition): number {
@@ -148,6 +154,30 @@ onBeforeUnmount(() => {
         />
       </section>
 
+      <section v-if="cardPids.length" class="value-grid">
+        <ValueCard
+          v-for="p in cardPids"
+          :key="p.id"
+          :label="pidShort(p)"
+          :name="pidName(p)"
+          :description="pidDesc(p)"
+          v-bind="displayFor(p)"
+          :experimental="p.experimental"
+        />
+      </section>
+      
+      <i18n-t
+        v-if="activePids.some((p) => p.experimental)"
+        keypath="live.experimental"
+        scope="global"
+        tag="p"
+        class="muted"
+      >
+        <template #term>
+          <strong>{{ t('live.experimentalTerm') }}</strong>
+        </template>
+      </i18n-t>
+
       <section v-if="chartPids.length" class="chart-grid">
         <TimeSeriesChart
           v-for="p in chartPids"
@@ -169,30 +199,6 @@ onBeforeUnmount(() => {
         <span class="swatch" :style="{ background: CHART_MARKER.cleared }"></span>
         {{ t('live.dtcMarkerCleared') }}
       </p>
-
-      <section v-if="cardPids.length" class="value-grid">
-        <ValueCard
-          v-for="p in cardPids"
-          :key="p.id"
-          :label="pidShort(p)"
-          :name="pidName(p)"
-          :description="pidDesc(p)"
-          v-bind="displayFor(p)"
-          :experimental="p.experimental"
-        />
-      </section>
-
-      <i18n-t
-        v-if="activePids.some((p) => p.experimental)"
-        keypath="live.experimental"
-        scope="global"
-        tag="p"
-        class="muted"
-      >
-        <template #term>
-          <strong>{{ t('live.experimentalTerm') }}</strong>
-        </template>
-      </i18n-t>
     </template>
   </div>
 </template>
