@@ -1,4 +1,10 @@
-import type { SampleRow, SessionRow } from './db'
+import type { DtcEventRow, SampleRow, SessionRow } from './db'
+
+/** The fields of a DTC event carried in a session export (local or cloud). */
+export type ExportDtcEvent = Pick<
+  DtcEventRow,
+  'ts' | 'kind' | 'code' | 'status' | 'system' | 'manufacturerSpecific' | 'description'
+>
 
 export interface PidMeta {
   name: string
@@ -35,13 +41,26 @@ export function buildCsv(samples: readonly SampleRow[], resolve: PidResolver): s
   return lines.join('\n')
 }
 
-export function buildSessionJson(session: SessionRow, samples: readonly SampleRow[]): string {
+export function buildSessionJson(
+  session: SessionRow,
+  samples: readonly SampleRow[],
+  dtcEvents: readonly ExportDtcEvent[] = [],
+): string {
   return JSON.stringify(
     {
       app: 'obd2-monitor',
       exportedAt: new Date().toISOString(),
       session,
       samples: samples.map((s) => ({ ts: s.ts, pidId: s.pidId, value: s.value })),
+      dtcEvents: dtcEvents.map((e) => ({
+        ts: e.ts,
+        kind: e.kind,
+        code: e.code,
+        status: e.status,
+        system: e.system,
+        manufacturerSpecific: e.manufacturerSpecific,
+        description: e.description,
+      })),
     },
     null,
     2,

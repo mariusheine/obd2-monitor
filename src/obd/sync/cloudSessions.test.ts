@@ -155,6 +155,39 @@ describe('fetchCloudSession', () => {
     ])
   })
 
+  it('reassembles DTC events (ISO→ms) and drops malformed ones', async () => {
+    propfindListMock.mockResolvedValue([file('obd-2026-07-12-14-31-00-000.json')])
+    getFileMock.mockResolvedValue(
+      JSON.stringify({
+        syncSessionId: 'sid-1',
+        session: { startedAt: '2026-07-12T14:30:05Z', endedAt: null, transportKind: 'ble', pidIds: [] },
+        samples: [],
+        dtcEvents: [
+          {
+            ts: '2026-07-12T14:31:05.000Z',
+            kind: 'appeared',
+            code: 'P2463',
+            status: 'pending',
+            system: 'powertrain',
+            manufacturerSpecific: false,
+          },
+          { ts: '2026-07-12T14:31:10.000Z', kind: 'bogus', code: 'P0001', status: 'pending', system: 'powertrain' },
+        ],
+      }),
+    )
+    const r = await fetchCloudSession(cfg, 'obd-2026-07-12-14-30-05-abcdef12')
+    expect(r.dtcEvents).toEqual([
+      {
+        ts: Date.parse('2026-07-12T14:31:05Z'),
+        kind: 'appeared',
+        code: 'P2463',
+        status: 'pending',
+        system: 'powertrain',
+        manufacturerSpecific: false,
+      },
+    ])
+  })
+
   it('skips a corrupt interval file without failing the whole drive', async () => {
     propfindListMock.mockResolvedValue([
       file('obd-2026-07-12-14-31-00-000.json'),

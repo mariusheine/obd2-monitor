@@ -12,6 +12,7 @@ import { pidColor } from '@/lib/palette'
 import type { PidDefinition } from '@/obd/pids/types'
 import { useConfigStore } from '@/stores/config'
 import { useConnectionStore } from '@/stores/connection'
+import { useDtcMonitorStore } from '@/stores/dtcMonitor'
 import { useLiveStore } from '@/stores/live'
 import { useSessionStore } from '@/stores/session'
 
@@ -22,12 +23,23 @@ const conn = useConnectionStore()
 const live = useLiveStore()
 const config = useConfigStore()
 const session = useSessionStore()
-const { t } = useI18n({ useScope: 'global' })
+const dtcMonitor = useDtcMonitorStore()
+const { t, locale } = useI18n({ useScope: 'global' })
 const { status, elm } = storeToRefs(conn)
 const { latest, polling, activePids, revision, errorCount } = storeToRefs(live)
 const { recording, sampleCount, startedAt } = storeToRefs(session)
+const { active: dtcActive, recentEvents: dtcEvents } = storeToRefs(dtcMonitor)
 
 const connected = computed(() => status.value === 'connected')
+
+/** Human text for the most recent DTC transition, e.g. "P2002 appeared 14:31". */
+const latestDtc = computed<string | null>(() => {
+  const e = dtcEvents.value[0]
+  if (!e) return null
+  const time = new Date(e.ts).toLocaleTimeString(locale.value)
+  const key = e.kind === 'appeared' ? 'live.dtcLatestAppeared' : 'live.dtcLatestCleared'
+  return t(key, { code: e.code, time })
+})
 
 const orderBy = (ids: string[]) => (a: PidDefinition, b: PidDefinition) =>
   ids.indexOf(a.id) - ids.indexOf(b.id)
@@ -101,6 +113,17 @@ onBeforeUnmount(() => {
         <span v-if="errorCount > 0" class="muted">{{
           t('live.readErrors', { count: errorCount })
         }}</span>
+      </div>
+
+      <div v-if="recording" class="row status-line">
+        <span class="dtc-watch" :class="{ alert: dtcActive.length > 0 }">
+          {{
+            dtcActive.length > 0
+              ? t('live.dtcWatchActive', dtcActive.length)
+              : t('live.dtcWatchClear')
+          }}
+          <span v-if="latestDtc" class="muted">· {{ latestDtc }}</span>
+        </span>
       </div>
 
       <section v-if="gaugePids.length" class="gauge-grid">
@@ -181,6 +204,14 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 0.4rem;
   color: #fca5a5;
+  font-weight: 600;
+}
+.dtc-watch {
+  font-size: 0.9rem;
+  color: var(--text-2, #9ca3af);
+}
+.dtc-watch.alert {
+  color: #fbbf24;
   font-weight: 600;
 }
 .rec-dot {

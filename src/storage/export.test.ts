@@ -45,11 +45,42 @@ describe('buildSessionJson', () => {
       sampleCount: 2,
       syncSessionId: 'test-sync-id',
       syncCursorId: 0,
+      syncDtcCursorId: 0,
     }
     const json = JSON.parse(buildSessionJson(s, samples))
     expect(json.session.startedAt).toBe(0)
     expect(json.samples).toHaveLength(2)
     expect(json.samples[0]).toEqual({ ts: 1000, pidId: 'std.rpm', value: 850 })
+    expect(json.dtcEvents).toEqual([])
+  })
+
+  it('embeds DTC events aligned on the same epoch-ms clock', () => {
+    const s: SessionRow = {
+      id: 1,
+      note: '',
+      startedAt: 0,
+      endedAt: 1000,
+      transportKind: 'mock',
+      pidIds: ['std.rpm'],
+      sampleCount: 2,
+      syncSessionId: 'test-sync-id',
+      syncCursorId: 0,
+      syncDtcCursorId: 0,
+    }
+    const json = JSON.parse(
+      buildSessionJson(s, samples, [
+        {
+          ts: 1050,
+          kind: 'appeared',
+          code: 'P2463',
+          status: 'pending',
+          system: 'powertrain',
+          manufacturerSpecific: false,
+        },
+      ]),
+    )
+    expect(json.dtcEvents).toHaveLength(1)
+    expect(json.dtcEvents[0]).toMatchObject({ ts: 1050, kind: 'appeared', code: 'P2463' })
   })
 })
 
@@ -65,6 +96,7 @@ describe('sessionFileBase', () => {
       sampleCount: 0,
       syncSessionId: 'test-sync-id',
       syncCursorId: 0,
+      syncDtcCursorId: 0,
     }
     expect(sessionFileBase(s)).toBe('obd-2026-07-11-10-00-00')
   })

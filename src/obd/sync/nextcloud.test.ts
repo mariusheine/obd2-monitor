@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import type { SampleRow, SessionRow } from '@/storage/db'
+import type { DtcEventRow, SampleRow, SessionRow } from '@/storage/db'
 import {
   buildIntervalFile,
   davFileUrl,
@@ -36,11 +36,25 @@ const session: SessionRow = {
   sampleCount: 3,
   syncSessionId: 'abcdef12-3456-7890-abcd-ef1234567890',
   syncCursorId: 0,
+  syncDtcCursorId: 0,
 }
 
 const samples: SampleRow[] = [
   { id: 1, sessionId: 1, ts: 10, pidId: 'std.rpm', value: 800 },
   { id: 2, sessionId: 1, ts: 20, pidId: 'std.speed', value: 30 },
+]
+
+const dtcEvents: DtcEventRow[] = [
+  {
+    id: 1,
+    sessionId: 1,
+    ts: 15,
+    kind: 'appeared',
+    code: 'P2463',
+    status: 'pending',
+    system: 'powertrain',
+    manufacturerSpecific: false,
+  },
 ]
 
 describe('normalizeBaseUrl', () => {
@@ -90,12 +104,14 @@ describe('URL + filename building', () => {
 
 describe('buildIntervalFile', () => {
   it('is pretty-printed (2-space indent)', () => {
-    expect(buildIntervalFile(session, samples, '', session.startedAt)).toContain('\n  "uploadedAt"')
+    expect(buildIntervalFile(session, samples, [], '', session.startedAt)).toContain(
+      '\n  "uploadedAt"',
+    )
   })
 
   it('is self-describing with ISO-string timestamps (one session per file)', () => {
     const parsed = JSON.parse(
-      buildIntervalFile(session, samples, 'Marius phone', Date.parse('2026-07-12T14:31:00Z')),
+      buildIntervalFile(session, samples, dtcEvents, 'Marius phone', Date.parse('2026-07-12T14:31:00Z')),
     )
     expect(parsed.uploadedAt).toBe('2026-07-12T14:31:00.000Z')
     expect(parsed.syncSessionId).toBe(session.syncSessionId)
@@ -107,6 +123,16 @@ describe('buildIntervalFile', () => {
     expect(parsed.samples).toEqual([
       { ts: '1970-01-01T00:00:00.010Z', pidId: 'std.rpm', value: 800 },
       { ts: '1970-01-01T00:00:00.020Z', pidId: 'std.speed', value: 30 },
+    ])
+    expect(parsed.dtcEvents).toEqual([
+      {
+        ts: '1970-01-01T00:00:00.015Z',
+        kind: 'appeared',
+        code: 'P2463',
+        status: 'pending',
+        system: 'powertrain',
+        manufacturerSpecific: false,
+      },
     ])
   })
 })

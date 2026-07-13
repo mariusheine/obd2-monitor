@@ -61,6 +61,10 @@ const en = {
     experimental:
       'Dashed items are {term} — values are from the simulator and must be verified on the vehicle.',
     experimentalTerm: 'experimental Fiat DPF PIDs',
+    dtcWatchClear: 'No trouble codes',
+    dtcWatchActive: '⚠ {count} active code | ⚠ {count} active codes',
+    dtcLatestAppeared: '{code} appeared {time}',
+    dtcLatestCleared: '{code} cleared {time}',
   },
   sessions: {
     localStorage: 'Local storage',

@@ -7,6 +7,7 @@ import { getPid } from '@/obd/pids/catalog'
 import {
   db,
   deleteSession,
+  sessionDtcEvents,
   sessionSamples,
   storageEstimate,
   type SampleRow,
@@ -149,6 +150,7 @@ function synthRow(r: ReassembledSession): SessionRow {
     sampleCount: r.samples.length,
     syncSessionId: r.syncSessionId,
     syncCursorId: 0,
+    syncDtcCursorId: 0,
   }
 }
 
@@ -160,12 +162,15 @@ async function exportEntry(e: Entry, kind: 'csv' | 'json'): Promise<void> {
     if (e.cloud) {
       const r = await sync.fetchCloud(e.cloud.folderName)
       const rows = toRows(r)
-      const content = kind === 'csv' ? buildCsv(rows, resolvePid) : buildSessionJson(synthRow(r), rows)
+      const content =
+        kind === 'csv' ? buildCsv(rows, resolvePid) : buildSessionJson(synthRow(r), rows, r.dtcEvents)
       const mime = kind === 'csv' ? 'text/csv' : 'application/json'
       downloadText(`${e.cloud.folderName}.${kind}`, mime, content)
     } else if (e.local) {
       const rows = await sessionSamples(e.local.id)
-      const content = kind === 'csv' ? buildCsv(rows, resolvePid) : buildSessionJson(e.local, rows)
+      const events = kind === 'json' ? await sessionDtcEvents(e.local.id) : []
+      const content =
+        kind === 'csv' ? buildCsv(rows, resolvePid) : buildSessionJson(e.local, rows, events)
       const mime = kind === 'csv' ? 'text/csv' : 'application/json'
       downloadText(`${e.key}.${kind}`, mime, content)
     }

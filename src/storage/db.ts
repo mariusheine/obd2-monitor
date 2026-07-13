@@ -1,5 +1,7 @@
 import Dexie, { type EntityTable } from 'dexie'
 
+import type { DtcSystem } from '@/obd/dtc/decode'
+
 /** A recorded drive session. */
 export interface SessionRow {
   id: number
@@ -17,6 +19,8 @@ export interface SessionRow {
   syncSessionId: string
   /** Highest sample `id` already uploaded to the cloud (0 = nothing yet). */
   syncCursorId: number
+  /** Highest DTC-event `id` already uploaded to the cloud (0 = nothing yet). */
+  syncDtcCursorId: number
 }
 
 /** A collision-resistant id for cloud sync grouping. */
@@ -36,8 +40,33 @@ export interface SampleRow {
   value: number
 }
 
+/** Which DTC set a code was observed in. */
+export type DtcStatus = 'stored' | 'pending' | 'permanent'
+/** A DTC state transition observed during a recording. */
+export type DtcEventKind = 'appeared' | 'cleared'
+
+/**
+ * A diagnostic-trouble-code state change logged during a drive: a code that
+ * appeared or cleared, stamped on the same epoch-ms clock as {@link SampleRow}
+ * so it aligns onto the live-PID timeline.
+ */
+export interface DtcEventRow {
+  id: number
+  sessionId: number
+  /** Epoch milliseconds — same clock as {@link SampleRow.ts}. */
+  ts: number
+  kind: DtcEventKind
+  /** Standard 5-char code, e.g. `P2002`. */
+  code: string
+  status: DtcStatus
+  system: DtcSystem
+  manufacturerSpecific: boolean
+  description?: string
+}
+
 export type NewSession = Omit<SessionRow, 'id'>
 export type NewSample = Omit<SampleRow, 'id'>
+export type NewDtcEvent = Omit<DtcEventRow, 'id'>
 
 /**
  * IndexedDB (via Dexie). `samples` is the high-volume time-series table — a long
@@ -48,6 +77,7 @@ export type NewSample = Omit<SampleRow, 'id'>
 export const db = new Dexie('obd2-monitor') as Dexie & {
   sessions: EntityTable<SessionRow, 'id'>
   samples: EntityTable<SampleRow, 'id'>
+  dtcEvents: EntityTable<DtcEventRow, 'id'>
 }
 
 db.version(1).stores({
@@ -73,10 +103,28 @@ db.version(2)
       }),
   )
 
-/** Delete a session and all of its samples in one transaction. */
+// v3 adds the dtcEvents time-series table (mirroring samples' indexes: [sessionId+ts]
+// for ordered export, [sessionId+id] for cloud paging) and the DTC sync cursor.
+db.version(3)
+  .stores({
+    sessions: '++id, startedAt',
+    samples: '++id, sessionId, [sessionId+ts], [sessionId+id]',
+    dtcEvents: '++id, sessionId, [sessionId+ts], [sessionId+id]',
+  })
+  .upgrade((tx) =>
+    tx
+      .table<SessionRow, number>('sessions')
+      .toCollection()
+      .modify((s) => {
+        s.syncDtcCursorId ??= 0
+      }),
+  )
+
+/** Delete a session and all of its samples and DTC events in one transaction. */
 export async function deleteSession(sessionId: number): Promise<void> {
-  await db.transaction('rw', db.sessions, db.samples, async () => {
+  await db.transaction('rw', db.sessions, db.samples, db.dtcEvents, async () => {
     await db.samples.where('sessionId').equals(sessionId).delete()
+    await db.dtcEvents.where('sessionId').equals(sessionId).delete()
     await db.sessions.delete(sessionId)
   })
 }
@@ -84,6 +132,14 @@ export async function deleteSession(sessionId: number): Promise<void> {
 /** Samples for a session, ordered by time (for review and export). */
 export function sessionSamples(sessionId: number): Promise<SampleRow[]> {
   return db.samples
+    .where('[sessionId+ts]')
+    .between([sessionId, Dexie.minKey], [sessionId, Dexie.maxKey])
+    .toArray()
+}
+
+/** DTC events for a session, ordered by time (for review and export). */
+export function sessionDtcEvents(sessionId: number): Promise<DtcEventRow[]> {
+  return db.dtcEvents
     .where('[sessionId+ts]')
     .between([sessionId, Dexie.minKey], [sessionId, Dexie.maxKey])
     .toArray()

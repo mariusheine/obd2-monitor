@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import Dexie from 'dexie'
 
-import { db, deleteSession, type SampleRow } from '@/storage/db'
+import { db, deleteSession, type DtcEventRow, type SampleRow } from '@/storage/db'
 import {
   buildIntervalFile,
   ensureFolder,
@@ -76,11 +76,28 @@ function newSamples(sessionId: number, afterId: number): Promise<SampleRow[]> {
     .toArray()
 }
 
-function countPending(sessionId: number, afterId: number): Promise<number> {
-  return db.samples
+/** DTC events of a session with `id` strictly greater than `afterId`, oldest first. */
+function newDtcEvents(sessionId: number, afterId: number): Promise<DtcEventRow[]> {
+  return db.dtcEvents
     .where('[sessionId+id]')
     .between([sessionId, afterId], [sessionId, Dexie.maxKey], false, true)
+    .toArray()
+}
+
+async function countPending(session: {
+  id: number
+  syncCursorId?: number
+  syncDtcCursorId?: number
+}): Promise<number> {
+  const samples = await db.samples
+    .where('[sessionId+id]')
+    .between([session.id, session.syncCursorId ?? 0], [session.id, Dexie.maxKey], false, true)
     .count()
+  const dtcEvents = await db.dtcEvents
+    .where('[sessionId+id]')
+    .between([session.id, session.syncDtcCursorId ?? 0], [session.id, Dexie.maxKey], false, true)
+    .count()
+  return samples + dtcEvents
 }
 
 /** The result of a "Test connection" attempt, for the Settings UI. */
@@ -147,7 +164,7 @@ export const useSyncStore = defineStore('sync', () => {
     const sessions = await db.sessions.toArray()
     const pending: number[] = []
     for (const s of sessions) {
-      if ((await countPending(s.id, s.syncCursorId ?? 0)) > 0) pending.push(s.id)
+      if ((await countPending(s)) > 0) pending.push(s.id)
     }
     pendingIds.value = pending
   }
@@ -164,26 +181,34 @@ export const useSyncStore = defineStore('sync', () => {
     let uploaded = false
     for (const s of sessions) {
       const rows = await newSamples(s.id, s.syncCursorId ?? 0)
-      if (rows.length > 0) {
+      const dtcRows = await newDtcEvents(s.id, s.syncDtcCursorId ?? 0)
+      if (rows.length > 0 || dtcRows.length > 0) {
         // All of a session's interval files live in its own subfolder.
         await ensureFolder({ ...cfg, folder: `${cfg.folder}/${sessionFolderName(s)}` })
         await putFile(
           cfg,
           intervalFilePath(s, uploadedAt),
           'application/json',
-          buildIntervalFile(s, rows, settings.value.deviceLabel, uploadedAt),
+          buildIntervalFile(s, rows, dtcRows, settings.value.deviceLabel, uploadedAt),
         )
-        // Safely in the cloud — advance the cursor and reclaim the rows.
-        s.syncCursorId = rows[rows.length - 1]!.id
-        await db.sessions.update(s.id, { syncCursorId: s.syncCursorId })
-        await db.samples.bulkDelete(rows.map((r) => r.id))
+        // Safely in the cloud — advance the cursors and reclaim the rows.
+        if (rows.length > 0) {
+          s.syncCursorId = rows[rows.length - 1]!.id
+          await db.sessions.update(s.id, { syncCursorId: s.syncCursorId })
+          await db.samples.bulkDelete(rows.map((r) => r.id))
+        }
+        if (dtcRows.length > 0) {
+          s.syncDtcCursorId = dtcRows[dtcRows.length - 1]!.id
+          await db.sessions.update(s.id, { syncDtcCursorId: s.syncDtcCursorId })
+          await db.dtcEvents.bulkDelete(dtcRows.map((r) => r.id))
+        }
         uploaded = true
       }
       // A stopped session that is fully uploaded no longer needs its local row:
       // the cloud folder now carries it. Pruning keeps IndexedDB minimal and the
       // Sessions view sources the drive from the cloud instead. Still-recording
-      // (endedAt null) and empty never-uploaded (cursor 0) sessions are kept.
-      if (s.endedAt !== null && (s.syncCursorId ?? 0) > 0) {
+      // (endedAt null) and empty never-uploaded (both cursors 0) sessions are kept.
+      if (s.endedAt !== null && ((s.syncCursorId ?? 0) > 0 || (s.syncDtcCursorId ?? 0) > 0)) {
         await deleteSession(s.id)
       }
     }

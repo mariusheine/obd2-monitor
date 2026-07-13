@@ -4,6 +4,7 @@ import { ref } from 'vue'
 import { db, newSyncId, type NewSample } from '@/storage/db'
 import type { Sample } from '@/obd/pids/types'
 import { useConnectionStore } from './connection'
+import { useDtcMonitorStore } from './dtcMonitor'
 import { useLiveStore } from './live'
 
 const FLUSH_INTERVAL_MS = 1500
@@ -72,6 +73,7 @@ export const useSessionStore = defineStore('session', () => {
       sampleCount: 0,
       syncSessionId: newSyncId(),
       syncCursorId: 0,
+      syncDtcCursorId: 0,
     })
     currentId.value = id
     startedAt.value = now
@@ -80,6 +82,8 @@ export const useSessionStore = defineStore('session', () => {
     recording.value = true
     unsubscribe = live.addSampleListener(onSample)
     flushTimer = setInterval(() => void flush(), FLUSH_INTERVAL_MS)
+    // Watch trouble codes for the length of the drive, logged against this session.
+    useDtcMonitorStore().start(id)
     // Start the cloud-sync engine now so uploads run during the drive.
     nudgeSync()
   }
@@ -87,6 +91,7 @@ export const useSessionStore = defineStore('session', () => {
   async function stop(): Promise<void> {
     if (!recording.value) return
     recording.value = false
+    useDtcMonitorStore().stop()
     if (flushTimer) clearInterval(flushTimer)
     flushTimer = undefined
     unsubscribe?.()

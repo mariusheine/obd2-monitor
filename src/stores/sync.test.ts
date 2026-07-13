@@ -39,8 +39,24 @@ function makeSession(over: Partial<NewSession> = {}): NewSession {
     sampleCount: 0,
     syncSessionId: `sid-${seq}`,
     syncCursorId: 0,
+    syncDtcCursorId: 0,
     ...over,
   }
+}
+
+/** Add `count` DTC events to a session; returns the highest event id. */
+async function seedDtc(sessionId: number, count: number): Promise<number> {
+  return db.dtcEvents.bulkAdd(
+    Array.from({ length: count }, (_, i) => ({
+      sessionId,
+      ts: i,
+      kind: 'appeared' as const,
+      code: `P240${i}`,
+      status: 'pending' as const,
+      system: 'powertrain' as const,
+      manufacturerSpecific: false,
+    })),
+  )
 }
 
 // fake-indexeddb autoincrement ids are global and survive clear(), so tests must
@@ -57,12 +73,13 @@ async function seed(count: number, over: Partial<NewSession> = {}): Promise<{ id
 /** Paths passed to putFile, in call order. */
 const uploadedNames = (): string[] => putFileMock.mock.calls.map((c) => c[1])
 /** The parsed body of the i-th upload. */
-const uploadedBody = (i = 0): { syncSessionId: string; samples: unknown[] } =>
+const uploadedBody = (i = 0): { syncSessionId: string; samples: unknown[]; dtcEvents: unknown[] } =>
   JSON.parse(putFileMock.mock.calls[i]![3] as string)
 
 beforeEach(async () => {
   setActivePinia(createPinia())
   await db.samples.clear()
+  await db.dtcEvents.clear()
   await db.sessions.clear()
   localStorage.clear()
   putFileMock.mockReset()
@@ -141,6 +158,39 @@ describe('sync engine', () => {
     expect(sync.pendingCount).toBe(0)
   })
 
+  it('uploads DTC events alongside samples, advancing the DTC cursor and reclaiming them', async () => {
+    const { id, lastId } = await seed(3, { endedAt: null })
+    const lastDtcId = await seedDtc(id, 2)
+    const sync = useSyncStore()
+    configure(sync)
+
+    await sync.tick()
+    await vi.waitFor(() => expect(sync.lastSyncAt).not.toBeNull())
+
+    expect(uploadedBody().dtcEvents).toHaveLength(2)
+    const row = await db.sessions.get(id)
+    expect(row?.syncCursorId).toBe(lastId)
+    expect(row?.syncDtcCursorId).toBe(lastDtcId)
+    expect(await db.dtcEvents.where('sessionId').equals(id).count()).toBe(0) // reclaimed
+    expect(sync.pendingCount).toBe(0)
+  })
+
+  it('uploads an interval that has only DTC events (no new samples)', async () => {
+    const { id, lastId } = await seed(2, { endedAt: null })
+    await db.sessions.update(id, { syncCursorId: lastId }) // samples already uploaded
+    await db.samples.where('sessionId').equals(id).delete()
+    await seedDtc(id, 1)
+    const sync = useSyncStore()
+    configure(sync)
+
+    await sync.tick()
+    await vi.waitFor(() => expect(sync.lastSyncAt).not.toBeNull())
+
+    expect(putFileMock).toHaveBeenCalledTimes(1)
+    expect(uploadedBody().samples).toHaveLength(0)
+    expect(uploadedBody().dtcEvents).toHaveLength(1)
+  })
+
   it('does nothing while disabled', async () => {
     await seed(3)
     const sync = useSyncStore()
@@ -205,6 +255,20 @@ describe('auto-prune of synced sessions', () => {
 
     expect(putFileMock).not.toHaveBeenCalled() // nothing new to upload
     expect(await db.sessions.get(id)).toBeUndefined() // but the stale row is pruned
+  })
+
+  it('prunes a stopped session whose only pending data was DTC events', async () => {
+    const { id } = await seed(0, { endedAt: Date.now() }) // stopped, no samples
+    await seedDtc(id, 2)
+    const sync = useSyncStore()
+    configure(sync)
+
+    await sync.tick()
+    await vi.waitFor(() => expect(sync.lastSyncAt).not.toBeNull())
+
+    expect(putFileMock).toHaveBeenCalledTimes(1) // the DTC events were uploaded
+    expect(await db.sessions.get(id)).toBeUndefined() // then the row was pruned
+    expect(await db.dtcEvents.where('sessionId').equals(id).count()).toBe(0)
   })
 
   it('keeps a still-recording session, and an empty stopped one', async () => {

@@ -6,7 +6,7 @@
  * endpoint cannot be reached cross-origin on a managed Nextcloud. The app only
  * ever creates files/folders (append-only). See `docs/nextcloud-sync.md`.
  */
-import type { SampleRow, SessionRow } from '@/storage/db'
+import type { DtcEventRow, SampleRow, SessionRow } from '@/storage/db'
 import { sessionFileBase } from '@/storage/export'
 
 /** Everything needed to talk to one Nextcloud folder. */
@@ -272,12 +272,14 @@ export async function deletePath(cfg: SyncConfig, relPath: string): Promise<void
 }
 
 /**
- * One interval file for a single session: its metadata plus the samples recorded
- * during this interval. Pretty-printed so it's readable straight from Nextcloud.
+ * One interval file for a single session: its metadata plus the samples and DTC
+ * events recorded during this interval. Pretty-printed so it's readable straight
+ * from Nextcloud.
  */
 export function buildIntervalFile(
   session: SessionRow,
   samples: readonly SampleRow[],
+  dtcEvents: readonly DtcEventRow[],
   device: string,
   uploadedAt: number,
 ): string {
@@ -296,6 +298,15 @@ export function buildIntervalFile(
         pidIds: session.pidIds,
       },
       samples: samples.map((s) => ({ ts: iso(s.ts), pidId: s.pidId, value: s.value })),
+      dtcEvents: dtcEvents.map((e) => ({
+        ts: iso(e.ts),
+        kind: e.kind,
+        code: e.code,
+        status: e.status,
+        system: e.system,
+        manufacturerSpecific: e.manufacturerSpecific,
+        description: e.description,
+      })),
     },
     null,
     2,

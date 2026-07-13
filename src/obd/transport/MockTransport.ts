@@ -3,6 +3,9 @@ import type { Transport, TransportState, Unsubscribe } from './types'
 
 const hex2 = (b: number): string => b.toString(16).toUpperCase().padStart(2, '0')
 
+/** Soot load (g/L) above which the simulator reports a pending soot-overload code. */
+const SOOT_DTC_THRESHOLD = 15
+
 /**
  * An in-memory ELM327 simulator that speaks just enough of the protocol for the
  * app to run without hardware. It answers the AT init sequence and Mode 01 / Mode
@@ -66,6 +69,11 @@ export class MockTransport implements Transport {
     for (const l of this.dataListeners) l(chunk)
   }
 
+  /** Build a Mode 03/07/0A response: `<mode+0x40> <count> <two bytes per code…>`. */
+  private dtcResponse(mode: number, codes: readonly number[][]): string {
+    return [mode + 0x40, codes.length, ...codes.flat()].map(hex2).join(' ')
+  }
+
   private respond(rawCommand: string): string {
     const command = rawCommand.replace(/\s+/g, '').toUpperCase()
     const echoPart = this.echo ? `${rawCommand}\r` : ''
@@ -95,10 +103,20 @@ export class MockTransport implements Transport {
     }
 
     // Diagnostic trouble codes: stored (03), pending (07), permanent (0A), clear (04).
-    // Simulates two stored DTCs (one DPF, one EGR) and one pending, clearable via 04.
-    if (command === '03') return this.dtcsCleared ? '43 00' : '43 02 20 02 04 01'
-    if (command === '07') return this.dtcsCleared ? '47 00' : '47 01 24 53'
-    if (command === '0A') return '4A 00'
+    // Two stored codes (P2002 DPF efficiency + P0401 EGR) and one pending (P2453),
+    // all clearable via 04. A soot-overload pending code (P2463) additionally appears
+    // while simulated soot is high and clears after a regeneration, so a recorded
+    // drive captures a real appear→clear transition for the DTC monitor.
+    if (command === '03') {
+      return this.dtcResponse(0x03, this.dtcsCleared ? [] : [[0x20, 0x02], [0x04, 0x01]])
+    }
+    if (command === '07') {
+      const pending: number[][] = []
+      if (!this.dtcsCleared) pending.push([0x24, 0x53]) // P2453
+      if (this.sim.state(Date.now()).dpfSootGl > SOOT_DTC_THRESHOLD) pending.push([0x24, 0x63]) // P2463
+      return this.dtcResponse(0x07, pending)
+    }
+    if (command === '0A') return this.dtcResponse(0x0a, [])
     if (command === '04') {
       this.dtcsCleared = true
       return '44'

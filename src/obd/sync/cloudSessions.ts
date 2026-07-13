@@ -4,6 +4,8 @@
  * and delete a session's cloud folder. See {@link ./nextcloud} for the layout the
  * uploader produces and `docs/nextcloud-sync.md` for the folder/file scheme.
  */
+import type { DtcEventKind, DtcStatus } from '@/storage/db'
+import type { DtcSystem } from '@/obd/dtc/decode'
 import {
   deletePath,
   getFile,
@@ -11,6 +13,17 @@ import {
   SyncError,
   type SyncConfig,
 } from './nextcloud'
+
+/** A DTC event as carried in the cloud interval files (ts converted ISO→ms on read). */
+export interface CloudDtcEvent {
+  ts: number
+  kind: DtcEventKind
+  code: string
+  status: DtcStatus
+  system: DtcSystem
+  manufacturerSpecific: boolean
+  description?: string
+}
 
 /** A cloud session as seen in a folder listing, before its files are downloaded. */
 export interface CloudSessionSummary {
@@ -33,6 +46,7 @@ export interface ReassembledSession {
   pidIds: string[]
   device: string
   samples: { ts: number; pidId: string; value: number }[]
+  dtcEvents: CloudDtcEvent[]
 }
 
 /**
@@ -90,6 +104,31 @@ interface IntervalFile {
     pidIds?: unknown
   }
   samples?: unknown
+  dtcEvents?: unknown
+}
+
+const DTC_KINDS: readonly DtcEventKind[] = ['appeared', 'cleared']
+const DTC_STATUSES: readonly DtcStatus[] = ['stored', 'pending', 'permanent']
+const DTC_SYSTEMS: readonly DtcSystem[] = ['powertrain', 'chassis', 'body', 'network']
+
+/** Validate and normalise one raw cloud DTC event; returns null if malformed. */
+function parseDtcEvent(raw: unknown): CloudDtcEvent | null {
+  if (typeof raw !== 'object' || raw === null) return null
+  const e = raw as Record<string, unknown>
+  const ts = toMs(e.ts)
+  if (ts === null || typeof e.code !== 'string') return null
+  if (!DTC_KINDS.includes(e.kind as DtcEventKind)) return null
+  if (!DTC_STATUSES.includes(e.status as DtcStatus)) return null
+  if (!DTC_SYSTEMS.includes(e.system as DtcSystem)) return null
+  return {
+    ts,
+    kind: e.kind as DtcEventKind,
+    code: e.code,
+    status: e.status as DtcStatus,
+    system: e.system as DtcSystem,
+    manufacturerSpecific: e.manufacturerSpecific === true,
+    description: typeof e.description === 'string' ? e.description : undefined,
+  }
 }
 
 function toMs(iso: unknown): number | null {
@@ -120,6 +159,7 @@ export async function fetchCloudSession(
     pidIds: [],
     device: '',
     samples: [],
+    dtcEvents: [],
   }
 
   for (const file of files) {
@@ -148,6 +188,12 @@ export async function fetchCloudSession(
         const ts = toMs(s.ts)
         if (ts === null || typeof s.pidId !== 'string' || typeof s.value !== 'number') continue
         result.samples.push({ ts, pidId: s.pidId, value: s.value })
+      }
+    }
+    if (Array.isArray(parsed.dtcEvents)) {
+      for (const raw of parsed.dtcEvents) {
+        const event = parseDtcEvent(raw)
+        if (event) result.dtcEvents.push(event)
       }
     }
   }

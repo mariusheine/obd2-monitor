@@ -56,6 +56,10 @@ const de: typeof en = {
     experimental:
       'Gestrichelte Elemente sind {term} — die Werte stammen vom Simulator und müssen am Fahrzeug verifiziert werden.',
     experimentalTerm: 'experimentelle Fiat-DPF-PIDs',
+    dtcWatchClear: 'Keine Fehlercodes',
+    dtcWatchActive: '⚠ {count} aktiver Code | ⚠ {count} aktive Codes',
+    dtcLatestAppeared: '{code} aufgetreten {time}',
+    dtcLatestCleared: '{code} verschwunden {time}',
   },
   sessions: {
     localStorage: 'Lokaler Speicher',
