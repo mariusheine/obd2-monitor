@@ -65,6 +65,9 @@ const en = {
     dtcWatchActive: '⚠ {count} active code | ⚠ {count} active codes',
     dtcLatestAppeared: '{code} appeared {time}',
     dtcLatestCleared: '{code} cleared {time}',
+    dtcMarkerLegend: 'Trouble codes:',
+    dtcMarkerAppeared: 'appeared',
+    dtcMarkerCleared: 'cleared',
   },
   sessions: {
     localStorage: 'Local storage',

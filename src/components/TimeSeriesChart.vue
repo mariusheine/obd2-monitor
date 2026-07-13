@@ -3,8 +3,17 @@ import uPlot from 'uplot'
 import 'uplot/dist/uPlot.min.css'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
-import { CHART_INK } from '@/lib/palette'
+import { CHART_INK, CHART_MARKER } from '@/lib/palette'
 import type { TimeSeries } from '@/lib/TimeSeries'
+
+/** A DTC state change to annotate on the timeline, on the same clock as samples. */
+export interface ChartMarker {
+  /** Epoch milliseconds. */
+  ts: number
+  kind: 'appeared' | 'cleared'
+  /** Trouble code, e.g. `P2002`, drawn as a label on the marker line. */
+  code: string
+}
 
 const props = defineProps<{
   series: TimeSeries
@@ -14,6 +23,7 @@ const props = defineProps<{
   color: string
   min?: number
   max?: number
+  markers?: readonly ChartMarker[]
 }>()
 
 const CHART_HEIGHT = 150
@@ -34,6 +44,52 @@ function buildData(): uPlot.AlignedData {
   // uPlot time scale expects UNIX seconds.
   const xs = props.series.ts.map((t) => t / 1000)
   return [xs, props.series.values.slice()]
+}
+
+/**
+ * Draw the DTC event markers as vertical dashed lines over the plot, colored by
+ * kind (red = appeared, green = cleared) with the code labelled up the line.
+ * Runs in uPlot's `draw` hook so it repaints with every redraw; positions come
+ * from `valToPos` on the x (time) scale, and everything is clipped to the plot
+ * box and skipped when the marker falls outside the visible time window.
+ */
+function drawMarkers(u: uPlot): void {
+  const markers = props.markers
+  if (!markers || markers.length === 0) return
+  const xMin = u.scales.x?.min
+  const xMax = u.scales.x?.max
+  if (xMin == null || xMax == null) return
+
+  const { ctx } = u
+  const { left, top, width, height } = u.bbox
+  const pr = uPlot.pxRatio ?? 1 // canvas is scaled by the device pixel ratio
+  ctx.save()
+  ctx.beginPath()
+  ctx.rect(left, top, width, height)
+  ctx.clip()
+  ctx.lineWidth = Math.max(1, Math.round(pr))
+  ctx.font = `${11 * pr}px system-ui, sans-serif`
+  for (const m of markers) {
+    const xval = m.ts / 1000 // x scale is in UNIX seconds (see buildData)
+    if (xval < xMin || xval > xMax) continue
+    const x = Math.round(u.valToPos(xval, 'x', true)) + 0.5
+    const color = m.kind === 'appeared' ? CHART_MARKER.appeared : CHART_MARKER.cleared
+    ctx.strokeStyle = color
+    ctx.fillStyle = color
+    ctx.setLineDash([4 * pr, 3 * pr])
+    ctx.beginPath()
+    ctx.moveTo(x, top)
+    ctx.lineTo(x, top + height)
+    ctx.stroke()
+    // Code label reading upward alongside the line, anchored near the bottom.
+    ctx.setLineDash([])
+    ctx.save()
+    ctx.translate(x + 3 * pr, top + height - 4 * pr)
+    ctx.rotate(-Math.PI / 2)
+    ctx.fillText(m.code, 0, 0)
+    ctx.restore()
+  }
+  ctx.restore()
 }
 
 function makeOptions(width: number): uPlot.Options {
@@ -61,6 +117,7 @@ function makeOptions(width: number): uPlot.Options {
       {},
       { label: props.label, stroke: props.color, width: 2, points: { show: false } },
     ],
+    plugins: [{ hooks: { draw: drawMarkers } }],
   }
 }
 
@@ -89,6 +146,8 @@ onMounted(() => {
 })
 
 watch(() => props.revision, scheduleDraw)
+// A new/removed DTC event should repaint the markers even without a fresh sample.
+watch(() => props.markers, scheduleDraw)
 
 onBeforeUnmount(() => {
   if (rafId) cancelAnimationFrame(rafId)

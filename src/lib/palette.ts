@@ -11,6 +11,16 @@ export const CHART_INK = {
   text: '#f4f7fb',
 } as const
 
+/**
+ * Colors for the DTC event markers overlaid on live charts: a code that
+ * appeared is drawn in red (a fault turned up), one that cleared in green (it
+ * went away). Both clear 3:1 on the dark chart surface.
+ */
+export const CHART_MARKER = {
+  appeared: '#e5484d', // red
+  cleared: '#30a46c', // green
+} as const
+
 const BY_CATEGORY: Record<PidCategory, string> = {
   engine: '#3987e5', // blue
   speed: '#199e70', // aqua

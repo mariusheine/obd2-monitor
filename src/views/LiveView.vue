@@ -8,7 +8,7 @@ import GaugeDial from '@/components/GaugeDial.vue'
 import TimeSeriesChart from '@/components/TimeSeriesChart.vue'
 import ValueCard from '@/components/ValueCard.vue'
 import { pidDesc, pidName, pidShort } from '@/i18n/labels'
-import { pidColor } from '@/lib/palette'
+import { CHART_MARKER, pidColor } from '@/lib/palette'
 import type { PidDefinition } from '@/obd/pids/types'
 import { useConfigStore } from '@/stores/config'
 import { useConnectionStore } from '@/stores/connection'
@@ -151,8 +151,17 @@ onBeforeUnmount(() => {
           :label="pidName(p)"
           :unit="p.unit"
           :color="pidColor(p)"
+          :markers="dtcEvents"
         />
       </section>
+
+      <p v-if="dtcEvents.length" class="dtc-legend muted">
+        {{ t('live.dtcMarkerLegend') }}
+        <span class="swatch" :style="{ background: CHART_MARKER.appeared }"></span>
+        {{ t('live.dtcMarkerAppeared') }}
+        <span class="swatch" :style="{ background: CHART_MARKER.cleared }"></span>
+        {{ t('live.dtcMarkerCleared') }}
+      </p>
 
       <section v-if="cardPids.length" class="value-grid">
         <ValueCard
@@ -194,6 +203,23 @@ onBeforeUnmount(() => {
 }
 .status-line {
   min-height: 1.2rem;
+}
+.dtc-legend {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  margin-top: -0.25rem;
+}
+.dtc-legend .swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 2px;
+}
+.dtc-legend .swatch + span,
+.dtc-legend span + .swatch {
+  margin-left: 0.15rem;
 }
 .rec-btn {
   border-color: var(--danger);

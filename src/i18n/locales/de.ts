@@ -60,6 +60,9 @@ const de: typeof en = {
     dtcWatchActive: '⚠ {count} aktiver Code | ⚠ {count} aktive Codes',
     dtcLatestAppeared: '{code} aufgetreten {time}',
     dtcLatestCleared: '{code} verschwunden {time}',
+    dtcMarkerLegend: 'Fehlercodes:',
+    dtcMarkerAppeared: 'aufgetreten',
+    dtcMarkerCleared: 'verschwunden',
   },
   sessions: {
     localStorage: 'Lokaler Speicher',
