@@ -17,6 +17,7 @@ const en = {
       live: 'Live',
       sessions: 'Sessions',
       codes: 'Codes',
+      dpf: 'DPF',
       settings: 'Settings',
     },
   },
@@ -65,9 +66,11 @@ const en = {
     dtcWatchActive: '⚠ {count} active code | ⚠ {count} active codes',
     dtcLatestAppeared: '{code} appeared {time}',
     dtcLatestCleared: '{code} cleared {time}',
+    dtcLatestManualCleared: '{code} manually cleared {time}',
     dtcMarkerLegend: 'Trouble codes:',
     dtcMarkerAppeared: 'appeared',
     dtcMarkerCleared: 'cleared',
+    dtcMarkerManualCleared: 'manually cleared',
   },
   sessions: {
     localStorage: 'Local storage',
@@ -79,6 +82,8 @@ const en = {
     exportCsv: 'Export CSV',
     exportJson: 'Export JSON',
     delete: 'Delete',
+    showEvents: 'Show {count} code event | Show {count} code events',
+    hideEvents: 'Hide code events',
     confirmDelete: 'Delete session "{label}" and its {count} samples?',
     transport: {
       ble: 'BLE',
@@ -139,6 +144,15 @@ const en = {
       server: 'Nextcloud returned an error.',
     },
   },
+  alerts: {
+    title: 'Driving alerts',
+    intro: 'Alert the moment a new trouble code appears while driving. Never clears anything.',
+    enable: 'Alert on a new trouble code',
+    sound: 'Sound',
+    vibration: 'Vibration',
+    newCode: 'New trouble code {code} — tap to view',
+    dismiss: 'Dismiss',
+  },
   dtc: {
     notConnected: 'Not connected. Go to {link} first (or start the simulator there).',
     connectLink: 'Connect',
@@ -154,6 +168,7 @@ const en = {
     recentNote: 'Codes appearing and clearing during the drive, newest first.',
     eventAppeared: 'appeared',
     eventCleared: 'cleared',
+    eventManualCleared: 'manually cleared',
     status: {
       stored: 'stored',
       pending: 'pending',
@@ -176,6 +191,42 @@ const en = {
       permanentTitle: 'Permanent',
       permanentNote:
         'Set by the ECU and NOT clearable with Mode 04 — they clear only after the fault is fixed and enough drive cycles pass.',
+    },
+  },
+  dpf: {
+    title: 'DPF analysis',
+    intro:
+      'Why the diesel particulate filter may be forcing reduced-power mode — soot load, exhaust temperature, and regeneration health.',
+    notConnected: 'Not connected. Go to {link} first (or start the simulator there).',
+    connectLink: 'Connect',
+    experimental:
+      'Experimental: these Fiat DPF values and thresholds come from the simulator and are not yet verified on the vehicle — treat them as indicative, not exact.',
+    findingsTitle: 'What this means',
+    noData: 'Waiting for DPF data… start polling on the Live dashboard.',
+    trendsTitle: 'Trends',
+    status: {
+      ok: 'DPF looks healthy',
+      info: 'DPF working normally',
+      warn: 'DPF needs attention',
+      crit: 'DPF problem — action needed',
+    },
+    finding: {
+      dpfFault:
+        'Active DPF fault code(s): {codes}. This is the likely cause of reduced-power mode. The fault itself must be fixed — clearing the code alone won’t resolve it.',
+      sootOk: 'Soot load {value} g/L — normal.',
+      sootElevated: 'Soot load {value} g/L — building up; a regeneration will run soon.',
+      sootHigh:
+        'Soot load {value} g/L — a regeneration is due. Drive 15–20 min at a steady speed above 2000 rpm to let it finish.',
+      sootCritical:
+        'Soot load {value} g/L — very high. The engine may drop into reduced-power (limp) mode to protect the filter. Take a longer motorway drive as soon as it’s safe; if it persists, see a workshop.',
+      regenActive:
+        'A regeneration is running now — keep driving steadily and don’t switch the engine off until it finishes.',
+      regensHealthy: 'Regenerations are completing normally.',
+      regensDisrupted:
+        '{disrupted} regenerations were interrupted ({retried} retried) — usually short trips that end before the burn-off finishes. Take a longer steady drive to complete one.',
+      kmSinceRegenOverdue:
+        '{km} km since the last regeneration — overdue. A longer steady drive should trigger one.',
+      egtHigh: 'Exhaust gas temperature {value} °C — unusually hot.',
     },
   },
   dtcSystem: {

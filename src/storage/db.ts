@@ -42,8 +42,12 @@ export interface SampleRow {
 
 /** Which DTC set a code was observed in. */
 export type DtcStatus = 'stored' | 'pending' | 'permanent'
-/** A DTC state transition observed during a recording. */
-export type DtcEventKind = 'appeared' | 'cleared'
+/**
+ * A DTC state change logged during a recording: a code `appeared`, a code
+ * `cleared` on its own (detected by the monitor's diff), or the driver did a
+ * deliberate Mode-04 `manual-clear` (one event per code wiped).
+ */
+export type DtcEventKind = 'appeared' | 'cleared' | 'manual-clear'
 
 /**
  * A diagnostic-trouble-code state change logged during a drive: a code that

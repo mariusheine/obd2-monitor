@@ -107,7 +107,7 @@ interface IntervalFile {
   dtcEvents?: unknown
 }
 
-const DTC_KINDS: readonly DtcEventKind[] = ['appeared', 'cleared']
+const DTC_KINDS: readonly DtcEventKind[] = ['appeared', 'cleared', 'manual-clear']
 const DTC_STATUSES: readonly DtcStatus[] = ['stored', 'pending', 'permanent']
 const DTC_SYSTEMS: readonly DtcSystem[] = ['powertrain', 'chassis', 'body', 'network']
 

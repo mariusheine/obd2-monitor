@@ -12,13 +12,15 @@ export const CHART_INK = {
 } as const
 
 /**
- * Colors for the DTC event markers overlaid on live charts: a code that
- * appeared is drawn in red (a fault turned up), one that cleared in green (it
- * went away). Both clear 3:1 on the dark chart surface.
+ * Colors for the DTC event markers overlaid on live charts, keyed by event kind:
+ * a code that appeared is red (a fault turned up), one that cleared on its own is
+ * green (it went away), and a deliberate manual (Mode-04) clear is violet (the
+ * driver wiped the codes). Each clears 3:1 on the dark chart surface.
  */
 export const CHART_MARKER = {
   appeared: '#e5484d', // red
   cleared: '#30a46c', // green
+  'manual-clear': '#9d7bea', // violet
 } as const
 
 const BY_CATEGORY: Record<PidCategory, string> = {

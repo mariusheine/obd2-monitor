@@ -5,6 +5,32 @@ import { DPF_PRESET_IDS, getPid } from '@/obd/pids/catalog'
 import { buildPollSpecs, defaultPollMs, type PollSpec } from '@/obd/acquisition/scheduler'
 
 const STORAGE_KEY = 'obd.config.pollSpecs.v1'
+const ALERTS_KEY = 'obd.config.alerts.v1'
+
+/** Preferences for the "new trouble code appeared while driving" alert. */
+export interface AlertPrefs {
+  enabled: boolean
+  sound: boolean
+  vibration: boolean
+}
+
+const DEFAULT_ALERTS: AlertPrefs = { enabled: true, sound: true, vibration: true }
+
+function loadAlerts(): AlertPrefs {
+  try {
+    const raw = localStorage.getItem(ALERTS_KEY)
+    if (!raw) return { ...DEFAULT_ALERTS }
+    const parsed = JSON.parse(raw) as Record<string, unknown>
+    return {
+      enabled: typeof parsed.enabled === 'boolean' ? parsed.enabled : DEFAULT_ALERTS.enabled,
+      sound: typeof parsed.sound === 'boolean' ? parsed.sound : DEFAULT_ALERTS.sound,
+      vibration:
+        typeof parsed.vibration === 'boolean' ? parsed.vibration : DEFAULT_ALERTS.vibration,
+    }
+  } catch {
+    return { ...DEFAULT_ALERTS }
+  }
+}
 
 function isValidSpec(value: unknown): value is PollSpec {
   if (typeof value !== 'object' || value === null) return false
@@ -34,12 +60,25 @@ function loadSpecs(): PollSpec[] | null {
 /** User-configurable acquisition settings: which PIDs to poll and how often. */
 export const useConfigStore = defineStore('config', () => {
   const specs = ref<PollSpec[]>(loadSpecs() ?? buildPollSpecs(DPF_PRESET_IDS))
+  const alerts = ref<AlertPrefs>(loadAlerts())
 
   watch(
     specs,
     (value) => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(value))
+      } catch {
+        // Storage may be unavailable (private mode); non-fatal.
+      }
+    },
+    { deep: true },
+  )
+
+  watch(
+    alerts,
+    (value) => {
+      try {
+        localStorage.setItem(ALERTS_KEY, JSON.stringify(value))
       } catch {
         // Storage may be unavailable (private mode); non-fatal.
       }
@@ -66,5 +105,5 @@ export const useConfigStore = defineStore('config', () => {
     }
   }
 
-  return { specs, resetToDpfPreset, setInterval, togglePid }
+  return { specs, alerts, resetToDpfPreset, setInterval, togglePid }
 })

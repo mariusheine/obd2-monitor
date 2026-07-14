@@ -4,11 +4,14 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
 import type { SyncErrorKind } from '@/obd/sync/nextcloud'
+import { useConfigStore } from '@/stores/config'
 import { useSyncStore, type TestResult } from '@/stores/sync'
 
 const sync = useSyncStore()
+const config = useConfigStore()
 const { settings, baseUrl, configured, lastSyncAt, lastError, pendingCount, running } =
   storeToRefs(sync)
+const { alerts } = storeToRefs(config)
 const { t, locale } = useI18n({ useScope: 'global' })
 
 const testing = ref(false)
@@ -48,6 +51,25 @@ onMounted(() => void sync.refreshPending())
 
 <template>
   <div class="stack">
+    <div class="card stack">
+      <div>
+        <strong>{{ t('alerts.title') }}</strong>
+        <p class="muted" style="margin: 0.3rem 0 0">{{ t('alerts.intro') }}</p>
+      </div>
+      <label class="toggle">
+        <input v-model="alerts.enabled" type="checkbox" />
+        <span>{{ t('alerts.enable') }}</span>
+      </label>
+      <label class="toggle">
+        <input v-model="alerts.sound" type="checkbox" :disabled="!alerts.enabled" />
+        <span>{{ t('alerts.sound') }}</span>
+      </label>
+      <label class="toggle">
+        <input v-model="alerts.vibration" type="checkbox" :disabled="!alerts.enabled" />
+        <span>{{ t('alerts.vibration') }}</span>
+      </label>
+    </div>
+
     <div class="card stack">
       <div>
         <strong>{{ t('settings.title') }}</strong>

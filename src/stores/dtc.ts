@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 import { parseDtcResponse, type Dtc } from '@/obd/dtc/decode'
 import type { Elm327 } from '@/obd/elm327/Elm327'
+import { useDtcMonitorStore } from './dtcMonitor'
 
 function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err)
@@ -47,6 +48,9 @@ export const useDtcStore = defineStore('dtc', () => {
     error.value = null
     try {
       await elm.send('04')
+      // Record the deletion against any active recording (marks charts + session)
+      // while the codes are still known, before re-reading the now-empty sets.
+      await useDtcMonitorStore().recordManualClear()
       await readAll(elm)
     } catch (err) {
       error.value = errorMessage(err)

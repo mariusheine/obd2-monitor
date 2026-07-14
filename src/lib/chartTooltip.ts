@@ -4,7 +4,7 @@ import type { TimeSeries } from './TimeSeries'
 export interface ChartMarker {
   /** Epoch milliseconds. */
   ts: number
-  kind: 'appeared' | 'cleared'
+  kind: 'appeared' | 'cleared' | 'manual-clear'
   /** Trouble code, e.g. `P2002`, drawn as a label on the marker line. */
   code: string
   /** Human-readable fault description, shown in the hover tooltip when present. */
@@ -52,6 +52,8 @@ export interface TooltipRenderOpts {
   /** Marker colors, keyed to match {@link ChartMarker.kind} (red appeared / green cleared). */
   appearedColor: string
   clearedColor: string
+  /** Violet for a manual (Mode-04) clear; falls back to {@link clearedColor}. */
+  manualClearColor?: string
   formatTime: (ts: number) => string
   formatValue: (value: number) => string
 }
@@ -76,7 +78,12 @@ export function renderTooltipHtml(model: TooltipModel, opts: TooltipRenderOpts):
   const unit = escapeHtml(opts.unit)
   const rows = model.events
     .map((e) => {
-      const color = e.kind === 'appeared' ? opts.appearedColor : opts.clearedColor
+      const color =
+        e.kind === 'appeared'
+          ? opts.appearedColor
+          : e.kind === 'manual-clear'
+            ? (opts.manualClearColor ?? opts.clearedColor)
+            : opts.clearedColor
       const code = escapeHtml(e.code)
       return (
         `<div class="chart-tt-dtc">` +

@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 import { RouterLink } from 'vue-router'
 
-import { dtcDescription, dtcSystemLabel } from '@/i18n/labels'
+import { dtcDescription, dtcEventIcon, dtcEventLabel, dtcSystemLabel } from '@/i18n/labels'
 import type { Dtc } from '@/obd/dtc/decode'
 import type { ActiveDtc } from '@/obd/dtc/monitor'
 import { useConnectionStore } from '@/stores/connection'
@@ -107,12 +107,12 @@ function clearCodes(): void {
           <p class="muted section-note">{{ t('dtc.recentNote') }}</p>
           <ul class="dtc-list">
             <li v-for="(e, i) in recentEvents" :key="`${i}-${e.ts}-${e.code}`" class="dtc-row">
-              <span class="event-kind" :class="e.kind">{{ e.kind === 'appeared' ? '⚠' : '✓' }}</span>
+              <span class="event-kind" :class="e.kind">{{ dtcEventIcon(e.kind) }}</span>
               <span class="dtc-code" :class="`sys-${e.system}`">{{ e.code }}</span>
               <div class="dtc-info">
                 <div>{{ dtcDescription(e.code, e.description) }}</div>
                 <div class="muted dtc-tags">
-                  {{ e.kind === 'appeared' ? t('dtc.eventAppeared') : t('dtc.eventCleared') }} ·
+                  {{ dtcEventLabel(e.kind) }} ·
                   {{ t(`dtc.status.${e.status}`) }} · {{ fmtTime(e.ts) }}
                 </div>
               </div>
@@ -223,6 +223,9 @@ function clearCodes(): void {
 }
 .event-kind.cleared {
   color: #86efac;
+}
+.event-kind.manual-clear {
+  color: #c4b5fd;
 }
 @keyframes pulse {
   0%,

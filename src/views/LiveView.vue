@@ -13,6 +13,7 @@ import { defaultPollMs } from '@/obd/acquisition/scheduler'
 import type { PidDefinition } from '@/obd/pids/types'
 import { useConfigStore } from '@/stores/config'
 import { useConnectionStore } from '@/stores/connection'
+import { useDtcStore } from '@/stores/dtc'
 import { useDtcMonitorStore } from '@/stores/dtcMonitor'
 import { useLiveStore } from '@/stores/live'
 import { useSessionStore } from '@/stores/session'
@@ -25,11 +26,13 @@ const live = useLiveStore()
 const config = useConfigStore()
 const session = useSessionStore()
 const dtcMonitor = useDtcMonitorStore()
+const dtc = useDtcStore()
 const { t, locale } = useI18n({ useScope: 'global' })
 const { status, elm } = storeToRefs(conn)
 const { latest, polling, activePids, revision, errorCount } = storeToRefs(live)
 const { recording, sampleCount, startedAt } = storeToRefs(session)
 const { active: dtcActive, recentEvents: dtcEvents } = storeToRefs(dtcMonitor)
+const { clearing: dtcClearing, error: dtcError } = storeToRefs(dtc)
 
 const connected = computed(() => status.value === 'connected')
 
@@ -38,7 +41,12 @@ const latestDtc = computed<string | null>(() => {
   const e = dtcEvents.value[0]
   if (!e) return null
   const time = new Date(e.ts).toLocaleTimeString(locale.value)
-  const key = e.kind === 'appeared' ? 'live.dtcLatestAppeared' : 'live.dtcLatestCleared'
+  const key =
+    e.kind === 'appeared'
+      ? 'live.dtcLatestAppeared'
+      : e.kind === 'manual-clear'
+        ? 'live.dtcLatestManualCleared'
+        : 'live.dtcLatestCleared'
   return t(key, { code: e.code, time })
 })
 
@@ -79,6 +87,12 @@ function startPolling(): void {
   if (elm.value) live.start(elm.value, config.specs)
 }
 
+/** Deliberate manual clear (Mode 04) from the dashboard — never automatic. */
+function clearDtc(): void {
+  if (!elm.value) return
+  if (confirm(t('dtc.clearConfirm'))) void dtc.clear(elm.value)
+}
+
 function displayFor(p: PidDefinition): { display: string; unit: string; highlight: boolean } {
   const v = latest.value[p.id]
   if (v === undefined) return { display: '—', unit: p.unit, highlight: false }
@@ -114,8 +128,13 @@ onBeforeUnmount(() => {
         </button>
         <button v-else class="rec-btn" @click="conn.disconnect()">{{ t('live.stop') }}</button>
         <button @click="live.clearHistories()">{{ t('live.clearCharts') }}</button>
+        <button class="rec-btn" :disabled="dtcClearing" @click="clearDtc">
+          {{ dtcClearing ? t('dtc.clearing') : t('dtc.clearCodes') }}
+        </button>
         <RouterLink to="/sessions" class="muted">{{ t('live.sessionsLink') }}</RouterLink>
       </div>
+
+      <div v-if="dtcError" class="banner danger">{{ dtcError }}</div>
 
       <div class="row status-line">
         <span v-if="recording" class="rec-indicator">
@@ -198,6 +217,8 @@ onBeforeUnmount(() => {
         {{ t('live.dtcMarkerAppeared') }}
         <span class="swatch" :style="{ background: CHART_MARKER.cleared }"></span>
         {{ t('live.dtcMarkerCleared') }}
+        <span class="swatch" :style="{ background: CHART_MARKER['manual-clear'] }"></span>
+        {{ t('live.dtcMarkerManualCleared') }}
       </p>
     </template>
   </div>

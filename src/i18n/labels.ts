@@ -1,5 +1,6 @@
 import type { DtcSystem } from '@/obd/dtc/decode'
 import type { PidDefinition } from '@/obd/pids/types'
+import type { DtcEventKind } from '@/storage/db'
 
 import { exists, translate } from './index'
 
@@ -36,4 +37,23 @@ export function dtcDescription(code: string, fallback?: string): string {
 
 export function dtcSystemLabel(system: DtcSystem): string {
   return translate(`dtcSystem.${system}`)
+}
+
+const DTC_EVENT_ICON: Record<DtcEventKind, string> = {
+  appeared: '⚠',
+  cleared: '✓',
+  'manual-clear': '🧹',
+}
+const DTC_EVENT_KEY: Record<DtcEventKind, string> = {
+  appeared: 'dtc.eventAppeared',
+  cleared: 'dtc.eventCleared',
+  'manual-clear': 'dtc.eventManualCleared',
+}
+
+export function dtcEventIcon(kind: DtcEventKind): string {
+  return DTC_EVENT_ICON[kind]
+}
+
+export function dtcEventLabel(kind: DtcEventKind): string {
+  return translate(DTC_EVENT_KEY[kind])
 }

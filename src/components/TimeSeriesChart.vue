@@ -82,7 +82,7 @@ function drawMarkers(u: uPlot): void {
     const xval = m.ts / 1000 // x scale is in UNIX seconds (see buildData)
     if (xval < xMin || xval > xMax) continue
     const x = Math.round(u.valToPos(xval, 'x', true)) + 0.5
-    const color = m.kind === 'appeared' ? CHART_MARKER.appeared : CHART_MARKER.cleared
+    const color = CHART_MARKER[m.kind]
     ctx.strokeStyle = color
     ctx.fillStyle = color
     ctx.setLineDash([4 * pr, 3 * pr])
@@ -136,6 +136,7 @@ function updateTooltip(u: uPlot): void {
     color: props.color,
     appearedColor: CHART_MARKER.appeared,
     clearedColor: CHART_MARKER.cleared,
+    manualClearColor: CHART_MARKER['manual-clear'],
     formatValue,
     formatTime: (ts) => new Date(ts).toLocaleTimeString(locale.value),
   })

@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useI18n } from 'vue-i18n'
 
+import { dtcEventIcon, dtcEventLabel } from '@/i18n/labels'
 import { getPid } from '@/obd/pids/catalog'
 import {
   db,
@@ -10,6 +11,7 @@ import {
   sessionDtcEvents,
   sessionSamples,
   storageEstimate,
+  type DtcEventRow,
   type SampleRow,
   type SessionRow,
 } from '@/storage/db'
@@ -41,6 +43,10 @@ const cloudList = ref<CloudSessionSummary[]>([])
 const usage = ref<{ usage: number; quota: number } | null>(null)
 const busyKey = ref<string | null>(null)
 const cloudError = ref<boolean>(false)
+/** DTC events per local session id, loaded on refresh (for the per-session reveal). */
+const eventsBySession = ref<Record<number, DtcEventRow[]>>({})
+/** Entry keys whose DTC-event list is expanded. */
+const expandedKeys = ref<Set<string>>(new Set())
 
 const entries = computed<Entry[]>(() => {
   const map = new Map<string, Entry>()
@@ -79,9 +85,27 @@ async function loadCloud(): Promise<void> {
 
 async function reload(): Promise<void> {
   localSessions.value = await db.sessions.orderBy('startedAt').reverse().toArray()
+  const events: Record<number, DtcEventRow[]> = {}
+  for (const s of localSessions.value) events[s.id] = await sessionDtcEvents(s.id)
+  eventsBySession.value = events
   usage.value = await storageEstimate()
   await sync.refreshPending()
   await loadCloud()
+}
+
+function eventsFor(e: Entry): DtcEventRow[] {
+  return e.local ? (eventsBySession.value[e.local.id] ?? []) : []
+}
+
+function toggleEvents(key: string): void {
+  const next = new Set(expandedKeys.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  expandedKeys.value = next
+}
+
+function fmtTime(ms: number): string {
+  return new Date(ms).toLocaleTimeString(locale.value)
 }
 
 async function syncNow(): Promise<void> {
@@ -268,6 +292,27 @@ onMounted(reload)
           {{ t('sessions.delete') }}
         </button>
       </div>
+
+      <template v-if="eventsFor(e).length">
+        <button class="events-toggle" @click="toggleEvents(e.key)">
+          {{
+            expandedKeys.has(e.key)
+              ? t('sessions.hideEvents')
+              : t('sessions.showEvents', eventsFor(e).length)
+          }}
+        </button>
+        <ul v-if="expandedKeys.has(e.key)" class="event-list">
+          <li
+            v-for="(ev, i) in eventsFor(e)"
+            :key="`${i}-${ev.ts}-${ev.code}`"
+            class="event-row"
+          >
+            <span class="event-kind" :class="ev.kind">{{ dtcEventIcon(ev.kind) }}</span>
+            <span class="event-code">{{ ev.code }}</span>
+            <span class="muted event-tags">{{ dtcEventLabel(ev.kind) }} · {{ fmtTime(ev.ts) }}</span>
+          </li>
+        </ul>
+      </template>
     </div>
   </div>
 </template>
@@ -328,5 +373,40 @@ onMounted(reload)
   color: #93c5fd;
   font-size: 0.75rem;
   font-weight: 600;
+}
+.events-toggle {
+  align-self: flex-start;
+  font-size: 0.85rem;
+  padding: 0.25rem 0.6rem;
+}
+.event-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.event-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+.event-kind.appeared {
+  color: #fbbf24;
+}
+.event-kind.cleared {
+  color: #86efac;
+}
+.event-kind.manual-clear {
+  color: #c4b5fd;
+}
+.event-code {
+  font-family: ui-monospace, monospace;
+  font-weight: 700;
+}
+.event-tags {
+  font-size: 0.8rem;
 }
 </style>

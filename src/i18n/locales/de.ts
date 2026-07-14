@@ -12,6 +12,7 @@ const de: typeof en = {
       live: 'Live',
       sessions: 'Sitzungen',
       codes: 'Codes',
+      dpf: 'DPF',
       settings: 'Einstellungen',
     },
   },
@@ -60,9 +61,11 @@ const de: typeof en = {
     dtcWatchActive: '⚠ {count} aktiver Code | ⚠ {count} aktive Codes',
     dtcLatestAppeared: '{code} aufgetreten {time}',
     dtcLatestCleared: '{code} verschwunden {time}',
+    dtcLatestManualCleared: '{code} manuell gelöscht {time}',
     dtcMarkerLegend: 'Fehlercodes:',
     dtcMarkerAppeared: 'aufgetreten',
     dtcMarkerCleared: 'verschwunden',
+    dtcMarkerManualCleared: 'manuell gelöscht',
   },
   sessions: {
     localStorage: 'Lokaler Speicher',
@@ -75,6 +78,8 @@ const de: typeof en = {
     exportCsv: 'CSV exportieren',
     exportJson: 'JSON exportieren',
     delete: 'Löschen',
+    showEvents: '{count} Code-Ereignis anzeigen | {count} Code-Ereignisse anzeigen',
+    hideEvents: 'Code-Ereignisse ausblenden',
     confirmDelete: 'Sitzung „{label}" und ihre {count} Messwerte löschen?',
     transport: {
       ble: 'BLE',
@@ -137,6 +142,16 @@ const de: typeof en = {
       server: 'Nextcloud hat einen Fehler zurückgegeben.',
     },
   },
+  alerts: {
+    title: 'Fahrt-Warnungen',
+    intro:
+      'Warnt, sobald während der Fahrt ein neuer Fehlercode auftritt. Löscht niemals etwas.',
+    enable: 'Bei neuem Fehlercode warnen',
+    sound: 'Ton',
+    vibration: 'Vibration',
+    newCode: 'Neuer Fehlercode {code} — zum Anzeigen tippen',
+    dismiss: 'Schließen',
+  },
   dtc: {
     notConnected: 'Nicht verbunden. Gehe zuerst zu {link} (oder starte dort den Simulator).',
     connectLink: 'Verbinden',
@@ -152,6 +167,7 @@ const de: typeof en = {
     recentNote: 'Codes, die während der Fahrt auftreten und verschwinden, neueste zuerst.',
     eventAppeared: 'aufgetreten',
     eventCleared: 'verschwunden',
+    eventManualCleared: 'manuell gelöscht',
     status: {
       stored: 'gespeichert',
       pending: 'ausstehend',
@@ -174,6 +190,42 @@ const de: typeof en = {
       permanentTitle: 'Dauerhaft',
       permanentNote:
         'Vom Steuergerät gesetzt und NICHT mit Modus 04 löschbar — sie löschen sich erst, nachdem der Fehler behoben ist und genügend Fahrzyklen vergangen sind.',
+    },
+  },
+  dpf: {
+    title: 'DPF-Analyse',
+    intro:
+      'Warum der Dieselpartikelfilter den Notlauf (reduzierte Leistung) auslösen könnte — Rußbeladung, Abgastemperatur und Regenerations-Gesundheit.',
+    notConnected: 'Nicht verbunden. Gehe zuerst zu {link} (oder starte dort den Simulator).',
+    connectLink: 'Verbinden',
+    experimental:
+      'Experimentell: Diese Fiat-DPF-Werte und Schwellwerte stammen vom Simulator und sind noch nicht am Fahrzeug verifiziert — als Anhaltspunkt, nicht als exakt betrachten.',
+    findingsTitle: 'Was das bedeutet',
+    noData: 'Warte auf DPF-Daten… starte die Abfrage im Live-Dashboard.',
+    trendsTitle: 'Verläufe',
+    status: {
+      ok: 'DPF wirkt gesund',
+      info: 'DPF arbeitet normal',
+      warn: 'DPF braucht Aufmerksamkeit',
+      crit: 'DPF-Problem — Handeln nötig',
+    },
+    finding: {
+      dpfFault:
+        'Aktive DPF-Fehlercodes: {codes}. Das ist die wahrscheinliche Ursache des Notlaufs. Der Fehler selbst muss behoben werden — den Code nur zu löschen behebt ihn nicht.',
+      sootOk: 'Rußbeladung {value} g/L — normal.',
+      sootElevated: 'Rußbeladung {value} g/L — steigt an; eine Regeneration läuft bald.',
+      sootHigh:
+        'Rußbeladung {value} g/L — eine Regeneration ist fällig. Fahre 15–20 min mit gleichmäßiger Drehzahl über 2000 U/min, damit sie abschließen kann.',
+      sootCritical:
+        'Rußbeladung {value} g/L — sehr hoch. Der Motor kann in den Notlauf (reduzierte Leistung) gehen, um den Filter zu schützen. Mache sobald sicher eine längere Autobahnfahrt; hält es an, in die Werkstatt.',
+      regenActive:
+        'Gerade läuft eine Regeneration — fahre gleichmäßig weiter und stelle den Motor nicht ab, bis sie fertig ist.',
+      regensHealthy: 'Regenerationen schließen normal ab.',
+      regensDisrupted:
+        '{disrupted} Regenerationen wurden unterbrochen ({retried} wiederholt) — meist Kurzstrecken, die vor dem Abbrennen enden. Mache eine längere gleichmäßige Fahrt, damit eine abschließt.',
+      kmSinceRegenOverdue:
+        '{km} km seit der letzten Regeneration — überfällig. Eine längere gleichmäßige Fahrt sollte eine auslösen.',
+      egtHigh: 'Abgastemperatur {value} °C — ungewöhnlich heiß.',
     },
   },
   dtcSystem: {

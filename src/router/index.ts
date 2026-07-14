@@ -29,6 +29,12 @@ export const router = createRouter({
       meta: { title: 'Codes' },
     },
     {
+      path: '/dpf',
+      name: 'dpf',
+      component: () => import('@/views/DpfAnalysisView.vue'),
+      meta: { title: 'DPF' },
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),
