@@ -104,6 +104,8 @@ const en = {
   review: {
     back: '← Back to sessions',
     loading: 'Loading session…',
+    loadingProgress: 'Loading… {loaded} / {total} files · {samples} samples',
+    loadIncomplete: 'Couldn’t finish loading — showing {loaded} of {total} files ({samples} samples).',
     error: 'Couldn’t load this session from the cloud. Check the connection in Settings.',
     notFound: 'Session not found. It may have been deleted.',
     meta: '{duration} · {samples} samples · {pids} PIDs · {transport}',

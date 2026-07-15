@@ -45,6 +45,10 @@ const { t, locale } = useI18n({ useScope: 'global' })
 const loading = ref(true)
 const errored = ref(false)
 const notFound = ref(false)
+/** Bumped on every (re)build so the charts redraw as a cloud drive streams in. */
+const revision = ref(0)
+/** Download progress while a long cloud drive streams in; null once complete/local. */
+const loadProgress = ref<{ loaded: number; total: number; failed: boolean } | null>(null)
 
 const header = ref<{
   startedAt: number
@@ -90,6 +94,9 @@ function build(src: ReviewSource): void {
     sampleCount: src.samples.length,
     device: src.device,
   }
+  // Reveal the (partial) drive and force the charts to redraw with the new points.
+  loading.value = false
+  revision.value += 1
 }
 
 /** The still-existing local session whose folder matches, or undefined. */
@@ -113,21 +120,33 @@ async function load(): Promise<void> {
   // reclaimed after upload), so prefer the cloud; fall back to a local-only drive.
   if (sync.active) {
     try {
-      const r = await sync.fetchCloud(folderName)
-      build({ ...r })
+      // Render the drive as it streams in: each interval file grows the charts and
+      // advances the progress strip, so a long session shows what's loaded so far.
+      const r = await sync.fetchCloud(folderName, (p) => {
+        loadProgress.value = { loaded: p.filesLoaded, total: p.totalFiles, failed: false }
+        build(p.session)
+      })
+      build(r)
+      loadProgress.value = null
       return
     } catch (err) {
-      // A never-synced local drive has no cloud folder — fall through to local.
-      if (!(err instanceof SyncError && err.kind === 'notfound')) errored.value = true
+      // A never-synced local drive has no cloud folder (notfound) — fall through to local.
+      if (!(err instanceof SyncError && err.kind === 'notfound')) {
+        // A failure mid-download: keep whatever we already rendered and flag it as
+        // incomplete rather than blanking the screen; only hard-error if nothing loaded.
+        if (loadProgress.value) loadProgress.value = { ...loadProgress.value, failed: true }
+        else errored.value = true
+      }
     }
   }
   const local = await findLocal(folderName)
   if (local) {
     errored.value = false
+    loadProgress.value = null // a full local copy supersedes any partial cloud fetch
     build(local)
     return
   }
-  if (!errored.value) notFound.value = true
+  if (!errored.value && !header.value) notFound.value = true
 }
 
 function transportLabel(kind: string): string {
@@ -161,6 +180,21 @@ const metaLine = computed<string>(() => {
   })
 })
 
+const progressPct = computed<number>(() => {
+  const p = loadProgress.value
+  if (!p || p.total === 0) return 0
+  return Math.round((p.loaded / p.total) * 100)
+})
+
+const progressLabel = computed<string>(() => {
+  const p = loadProgress.value
+  if (!p) return ''
+  const samples = (header.value?.sampleCount ?? 0).toLocaleString(locale.value)
+  return p.failed
+    ? t('review.loadIncomplete', { loaded: p.loaded, total: p.total, samples })
+    : t('review.loadingProgress', { loaded: p.loaded, total: p.total, samples })
+})
+
 function intervalFor(p: PidDefinition): number {
   return defaultPollMs(p.category)
 }
@@ -178,11 +212,18 @@ onMounted(async () => {
   <div class="stack">
     <RouterLink to="/sessions" class="muted back">{{ t('review.back') }}</RouterLink>
 
-    <div v-if="loading" class="banner">{{ t('review.loading') }}</div>
-    <div v-else-if="errored" class="banner warn">{{ t('review.error') }}</div>
-    <div v-else-if="notFound" class="banner warn">{{ t('review.notFound') }}</div>
+    <div v-if="loading && !header" class="banner">{{ t('review.loading') }}</div>
+    <div v-else-if="errored && !header" class="banner warn">{{ t('review.error') }}</div>
+    <div v-else-if="notFound && !header" class="banner warn">{{ t('review.notFound') }}</div>
 
-    <template v-else-if="header">
+    <template v-if="header">
+      <div v-if="loadProgress" class="load-strip" :class="{ failed: loadProgress.failed }">
+        <div class="load-bar">
+          <div class="load-fill" :style="{ width: `${progressPct}%` }"></div>
+        </div>
+        <span class="muted small">{{ progressLabel }}</span>
+      </div>
+
       <section class="card stack" style="gap: 0.35rem">
         <strong>{{ fmtDate(header.startedAt) }}</strong>
         <span class="muted">{{ metaLine }}</span>
@@ -215,7 +256,7 @@ onMounted(async () => {
             v-for="c in charts"
             :key="c.pid.id"
             :series="c.series"
-            :revision="1"
+            :revision="revision"
             :label="pidName(c.pid)"
             :unit="c.pid.unit"
             :color="pidColor(c.pid)"
@@ -253,6 +294,27 @@ onMounted(async () => {
 .back {
   align-self: flex-start;
   text-decoration: none;
+}
+.load-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.load-bar {
+  height: 4px;
+  width: 100%;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.load-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.load-strip.failed .load-fill {
+  background: var(--danger);
 }
 .chart-grid {
   display: grid;

@@ -50,6 +50,20 @@ export interface ReassembledSession {
 }
 
 /**
+ * Progress of an in-flight {@link fetchCloudSession}, fired once per interval file
+ * so the review screen can render the drive as it downloads (a long drive is many
+ * per-minute files). `session` is the same object being reassembled, mutated in
+ * place — read it synchronously in the callback (e.g. build a snapshot); don't
+ * retain it across awaits.
+ */
+export interface FetchProgress {
+  /** Files downloaded so far (including skipped-as-corrupt ones). */
+  filesLoaded: number
+  totalFiles: number
+  session: ReassembledSession
+}
+
+/**
  * Inverse of {@link sessionFolderName}: `obd-YYYY-MM-DD-HH-MM-SS-<shortId>` →
  * start time (parsed as UTC, matching `sessionFileBase`) and short id. Returns
  * null for names that don't fit the scheme.
@@ -146,6 +160,7 @@ function toMs(iso: unknown): number | null {
 export async function fetchCloudSession(
   cfg: SyncConfig,
   folderName: string,
+  onProgress?: (progress: FetchProgress) => void,
 ): Promise<ReassembledSession> {
   const files = (await propfindList(cfg, folderName))
     .filter((e) => !e.isCollection && e.name.endsWith('.json'))
@@ -162,40 +177,45 @@ export async function fetchCloudSession(
     dtcEvents: [],
   }
 
+  let filesLoaded = 0
   for (const file of files) {
     const text = await getFile(cfg, `${folderName}/${file.name}`)
-    let parsed: IntervalFile
+    let parsed: IntervalFile | null = null
     try {
       parsed = JSON.parse(text) as IntervalFile
     } catch {
-      continue // Skip a corrupt/partial file rather than fail the whole drive.
+      parsed = null // Skip a corrupt/partial file rather than fail the whole drive.
     }
-    // Metadata from the newest file wins (last iteration), incl. the final endedAt.
-    if (typeof parsed.syncSessionId === 'string') result.syncSessionId = parsed.syncSessionId
-    if (typeof parsed.device === 'string') result.device = parsed.device
-    const meta = parsed.session
-    if (meta) {
-      const started = toMs(meta.startedAt)
-      if (started !== null) result.startedAt = started
-      result.endedAt = toMs(meta.endedAt)
-      if (typeof meta.transportKind === 'string') result.transportKind = meta.transportKind
-      if (Array.isArray(meta.pidIds)) result.pidIds = meta.pidIds.filter((p): p is string => typeof p === 'string')
-    }
-    if (Array.isArray(parsed.samples)) {
-      for (const raw of parsed.samples) {
-        if (typeof raw !== 'object' || raw === null) continue
-        const s = raw as { ts?: unknown; pidId?: unknown; value?: unknown }
-        const ts = toMs(s.ts)
-        if (ts === null || typeof s.pidId !== 'string' || typeof s.value !== 'number') continue
-        result.samples.push({ ts, pidId: s.pidId, value: s.value })
+    if (parsed) {
+      // Metadata from the newest file wins (last iteration), incl. the final endedAt.
+      if (typeof parsed.syncSessionId === 'string') result.syncSessionId = parsed.syncSessionId
+      if (typeof parsed.device === 'string') result.device = parsed.device
+      const meta = parsed.session
+      if (meta) {
+        const started = toMs(meta.startedAt)
+        if (started !== null) result.startedAt = started
+        result.endedAt = toMs(meta.endedAt)
+        if (typeof meta.transportKind === 'string') result.transportKind = meta.transportKind
+        if (Array.isArray(meta.pidIds)) result.pidIds = meta.pidIds.filter((p): p is string => typeof p === 'string')
+      }
+      if (Array.isArray(parsed.samples)) {
+        for (const raw of parsed.samples) {
+          if (typeof raw !== 'object' || raw === null) continue
+          const s = raw as { ts?: unknown; pidId?: unknown; value?: unknown }
+          const ts = toMs(s.ts)
+          if (ts === null || typeof s.pidId !== 'string' || typeof s.value !== 'number') continue
+          result.samples.push({ ts, pidId: s.pidId, value: s.value })
+        }
+      }
+      if (Array.isArray(parsed.dtcEvents)) {
+        for (const raw of parsed.dtcEvents) {
+          const event = parseDtcEvent(raw)
+          if (event) result.dtcEvents.push(event)
+        }
       }
     }
-    if (Array.isArray(parsed.dtcEvents)) {
-      for (const raw of parsed.dtcEvents) {
-        const event = parseDtcEvent(raw)
-        if (event) result.dtcEvents.push(event)
-      }
-    }
+    filesLoaded += 1
+    onProgress?.({ filesLoaded, totalFiles: files.length, session: result })
   }
   return result
 }

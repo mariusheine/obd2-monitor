@@ -208,6 +208,38 @@ describe('fetchCloudSession', () => {
     expect(r.samples).toHaveLength(1)
     expect(r.samples[0]!.value).toBe(900)
   })
+
+  it('reports progress once per file with a growing session (incl. skipped files)', async () => {
+    propfindListMock.mockResolvedValue([
+      file('obd-2026-07-12-14-31-00-000.json'),
+      file('obd-2026-07-12-14-32-00-000.json'), // corrupt — still advances progress
+      file('obd-2026-07-12-14-33-00-000.json'),
+    ])
+    getFileMock.mockImplementation((_cfg, relPath) => {
+      if (relPath.endsWith('14-32-00-000.json')) return Promise.resolve('{ not json')
+      const value = relPath.endsWith('14-31-00-000.json') ? 820 : 900
+      return Promise.resolve(
+        JSON.stringify({
+          syncSessionId: 'sid-1',
+          session: { startedAt: '2026-07-12T14:30:05Z', endedAt: null, transportKind: 'ble', pidIds: ['std.rpm'] },
+          samples: [{ ts: '2026-07-12T14:31:05Z', pidId: 'std.rpm', value }],
+        }),
+      )
+    })
+
+    const ticks: { filesLoaded: number; totalFiles: number; sampleCount: number }[] = []
+    const r = await fetchCloudSession(cfg, 'obd-2026-07-12-14-30-05-abcdef12', (p) => {
+      // Snapshot the mutated-in-place session synchronously.
+      ticks.push({ filesLoaded: p.filesLoaded, totalFiles: p.totalFiles, sampleCount: p.session.samples.length })
+    })
+
+    expect(ticks).toEqual([
+      { filesLoaded: 1, totalFiles: 3, sampleCount: 1 },
+      { filesLoaded: 2, totalFiles: 3, sampleCount: 1 }, // corrupt file added nothing but still ticked
+      { filesLoaded: 3, totalFiles: 3, sampleCount: 2 },
+    ])
+    expect(r.samples).toHaveLength(2)
+  })
 })
 
 describe('deleteCloudSession', () => {

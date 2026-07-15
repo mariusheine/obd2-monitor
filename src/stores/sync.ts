@@ -20,6 +20,7 @@ import {
   fetchCloudSession,
   listCloudSessions,
   type CloudSessionSummary,
+  type FetchProgress,
   type ReassembledSession,
 } from '@/obd/sync/cloudSessions'
 
@@ -253,11 +254,18 @@ export const useSyncStore = defineStore('sync', () => {
     return listCloudSessions(cfg)
   }
 
-  /** Download and reassemble one cloud session's full sample stream. */
-  async function fetchCloud(folderName: string): Promise<ReassembledSession> {
+  /**
+   * Download and reassemble one cloud session's full sample stream. `onProgress`
+   * (optional) fires once per interval file so callers can render the drive as it
+   * streams in — see {@link fetchCloudSession}.
+   */
+  async function fetchCloud(
+    folderName: string,
+    onProgress?: (progress: FetchProgress) => void,
+  ): Promise<ReassembledSession> {
     const cfg = syncConfig()
     if (!cfg) throw new SyncError('notfound', 'Cloud sync is not configured')
-    return fetchCloudSession(cfg, folderName)
+    return fetchCloudSession(cfg, folderName, onProgress)
   }
 
   /** Delete one session's whole folder from the cloud. */

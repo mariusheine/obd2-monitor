@@ -100,6 +100,8 @@ const de: typeof en = {
   review: {
     back: '← Zurück zu den Sitzungen',
     loading: 'Sitzung wird geladen…',
+    loadingProgress: 'Wird geladen… {loaded} / {total} Dateien · {samples} Messwerte',
+    loadIncomplete: 'Laden nicht abgeschlossen — {loaded} von {total} Dateien werden angezeigt ({samples} Messwerte).',
     error: 'Diese Sitzung konnte nicht aus der Cloud geladen werden. Prüfe die Verbindung in den Einstellungen.',
     notFound: 'Sitzung nicht gefunden. Sie wurde möglicherweise gelöscht.',
     meta: '{duration} · {samples} Messwerte · {pids} PIDs · {transport}',
