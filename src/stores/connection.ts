@@ -122,6 +122,18 @@ export const useConnectionStore = defineStore('connection', () => {
 
   async function connect(which: TransportKind): Promise<void> {
     if (['connecting', 'connected', 'reconnecting'].includes(status.value)) return
+    // Release anything left over from a prior failed/aborted session (e.g. after
+    // `reconnectFailed`, where `transport` stays set) so a half-open BLE link is
+    // closed before we open a new one — a single-client ELM327 adapter otherwise
+    // refuses the next connect with "Unknown error".
+    reconnector?.stop()
+    reconnector = null
+    if (transport.value) {
+      await transport.value.disconnect().catch(() => undefined)
+      elm.value?.dispose()
+      elm.value = null
+      transport.value = null
+    }
     error.value = null
     status.value = 'connecting'
     kind.value = which

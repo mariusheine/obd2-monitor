@@ -21,6 +21,16 @@ const KNOWN_SERVICES: BluetoothServiceUUID[] = [
 const WRITE_CHUNK_SIZE = 20
 
 /**
+ * GATT connect retries. Android's first `gatt.connect()` after a prior session or
+ * an unclean drop frequently fails with a spurious "Unknown error"; dropping the
+ * half-open link and retrying after a short delay clears it.
+ */
+const GATT_CONNECT_ATTEMPTS = 3
+const GATT_RETRY_MS = 400
+
+const delay = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
  * Why `navigator.bluetooth` might be missing. We distinguish these so the UI can
  * tell the user what to actually change instead of a generic "unsupported":
  * - `insecure-context`: served over plain `http://` on a non-localhost origin —
@@ -101,23 +111,48 @@ export class BleTransport implements Transport {
       this.device = device
       device.addEventListener('gattserverdisconnected', this.handleGattDisconnected)
 
-      const gatt = device.gatt
-      if (!gatt) throw new TransportError('Selected device exposes no GATT server')
-      const server = await gatt.connect()
-
-      const { writeChar, notifyChar } = await this.discover(server)
-      this.writeChar = writeChar
-      this.notifyChar = notifyChar
-
-      await notifyChar.startNotifications()
-      notifyChar.addEventListener('characteristicvaluechanged', this.handleCharacteristicValue)
+      await this.openGatt(device)
 
       this._label = device.name ?? 'BLE OBD adapter'
       this._state = 'connected'
     } catch (err) {
+      // Release any half-open link so the (single-client) ELM327 adapter is free
+      // for the next attempt. Skipping this is what leaves Chromium throwing
+      // "Unknown error when connecting to …" on every retry after the first.
+      this.device?.gatt?.disconnect()
+      this.writeChar = null
+      this.notifyChar = null
       this._state = 'disconnected'
       throw err
     }
+  }
+
+  /**
+   * Open the GATT server, find the ELM327 service, and subscribe to notifications
+   * — retrying a few times. Between failed attempts we drop the (possibly
+   * half-open) link so the adapter is free before the next `gatt.connect()`; see
+   * {@link GATT_CONNECT_ATTEMPTS}.
+   */
+  private async openGatt(device: BluetoothDevice): Promise<void> {
+    const gatt = device.gatt
+    if (!gatt) throw new TransportError('Selected device exposes no GATT server')
+    let lastErr: unknown
+    for (let attempt = 1; attempt <= GATT_CONNECT_ATTEMPTS; attempt += 1) {
+      try {
+        const server = await gatt.connect()
+        const { writeChar, notifyChar } = await this.discover(server)
+        await notifyChar.startNotifications()
+        notifyChar.addEventListener('characteristicvaluechanged', this.handleCharacteristicValue)
+        this.writeChar = writeChar
+        this.notifyChar = notifyChar
+        return
+      } catch (err) {
+        lastErr = err
+        gatt.disconnect() // clear the stale link before trying again
+        if (attempt < GATT_CONNECT_ATTEMPTS) await delay(GATT_RETRY_MS * attempt)
+      }
+    }
+    throw lastErr
   }
 
   async disconnect(): Promise<void> {
@@ -199,6 +234,10 @@ export class BleTransport implements Transport {
   }
 
   private readonly handleGattDisconnected = (): void => {
+    // While `connect()` is still running, a disconnect event is just churn from
+    // openGatt's retry loop dropping a stale link — not a real drop of an
+    // established connection, so don't fan it out to listeners.
+    if (this._state === 'connecting') return
     this.writeChar = null
     this.notifyChar = null
     this._state = 'disconnected'
