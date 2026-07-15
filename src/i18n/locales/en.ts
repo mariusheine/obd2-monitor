@@ -79,6 +79,7 @@ const en = {
     noSessionsRecord: '● Record',
     recordingPill: 'recording',
     meta: '{duration} · {samples} samples · {pids} PIDs · {transport}',
+    review: 'Review',
     exportCsv: 'Export CSV',
     exportJson: 'Export JSON',
     delete: 'Delete',
@@ -99,6 +100,18 @@ const en = {
     cloudError: 'Couldn’t load sessions from the cloud. Check the connection in Settings.',
     confirmDeleteCloud:
       'Delete session "{label}" from Nextcloud? This removes it from the cloud for all devices.',
+  },
+  review: {
+    back: '← Back to sessions',
+    loading: 'Loading session…',
+    error: 'Couldn’t load this session from the cloud. Check the connection in Settings.',
+    notFound: 'Session not found. It may have been deleted.',
+    meta: '{duration} · {samples} samples · {pids} PIDs · {transport}',
+    device: 'Recorded on {device}',
+    chartsTitle: 'Trends',
+    noCharts: 'No chart data was recorded for this session.',
+    noDpf: 'No DPF data was recorded in this session.',
+    dtcTimeline: 'Trouble-code timeline',
   },
   settings: {
     title: 'Cloud sync',

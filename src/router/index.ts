@@ -23,6 +23,12 @@ export const router = createRouter({
       meta: { title: 'Sessions' },
     },
     {
+      path: '/sessions/:folderName',
+      name: 'review',
+      component: () => import('@/views/ReviewView.vue'),
+      meta: { title: 'Review' },
+    },
+    {
       path: '/dtc',
       name: 'dtc',
       component: () => import('@/views/DtcView.vue'),

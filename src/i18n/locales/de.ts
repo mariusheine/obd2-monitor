@@ -75,6 +75,7 @@ const de: typeof en = {
     noSessionsRecord: '● Aufnahme',
     recordingPill: 'Aufnahme',
     meta: '{duration} · {samples} Messwerte · {pids} PIDs · {transport}',
+    review: 'Ansehen',
     exportCsv: 'CSV exportieren',
     exportJson: 'JSON exportieren',
     delete: 'Löschen',
@@ -95,6 +96,18 @@ const de: typeof en = {
     cloudError: 'Sitzungen aus der Cloud konnten nicht geladen werden. Prüfe die Verbindung in den Einstellungen.',
     confirmDeleteCloud:
       'Sitzung „{label}" aus Nextcloud löschen? Damit wird sie für alle Geräte aus der Cloud entfernt.',
+  },
+  review: {
+    back: '← Zurück zu den Sitzungen',
+    loading: 'Sitzung wird geladen…',
+    error: 'Diese Sitzung konnte nicht aus der Cloud geladen werden. Prüfe die Verbindung in den Einstellungen.',
+    notFound: 'Sitzung nicht gefunden. Sie wurde möglicherweise gelöscht.',
+    meta: '{duration} · {samples} Messwerte · {pids} PIDs · {transport}',
+    device: 'Aufgezeichnet auf {device}',
+    chartsTitle: 'Verläufe',
+    noCharts: 'Für diese Sitzung wurden keine Diagrammdaten aufgezeichnet.',
+    noDpf: 'In dieser Sitzung wurden keine DPF-Daten aufgezeichnet.',
+    dtcTimeline: 'Fehlercode-Verlauf',
   },
   settings: {
     title: 'Cloud-Sync',

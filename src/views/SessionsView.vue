@@ -282,6 +282,13 @@ onMounted(reload)
         <template v-else-if="e.cloud">{{ cloudMeta(e.cloud) }}</template>
       </div>
       <div class="row">
+        <RouterLink
+          v-if="!exportDisabled(e)"
+          class="review-link"
+          :to="{ name: 'review', params: { folderName: e.key } }"
+        >
+          {{ t('sessions.review') }}
+        </RouterLink>
         <button :disabled="busyKey === e.key || exportDisabled(e)" @click="exportEntry(e, 'csv')">
           {{ busyKey === e.key ? t('sessions.downloading') : t('sessions.exportCsv') }}
         </button>
@@ -333,6 +340,22 @@ onMounted(reload)
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
+}
+/* Match the sibling <button>s so the review link reads as one of the actions. */
+.review-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-dim);
+  color: #04211d;
+  font-weight: 600;
+  text-decoration: none;
+}
+.review-link:hover {
+  filter: brightness(1.05);
 }
 .session-head {
   display: flex;
