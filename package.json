@@ -14,7 +14,8 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"src/**/*.{ts,vue,css}\"",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "dexie": "^4.0.11",
@@ -28,6 +29,7 @@
     "@types/node": "^22.10.5",
     "@types/web-bluetooth": "^0.0.20",
     "@vitejs/plugin-vue": "^5.2.1",
+    "@vitest/coverage-v8": "^2.1.9",
     "@vue/eslint-config-prettier": "^10.1.0",
     "@vue/eslint-config-typescript": "^14.2.0",
     "@vue/test-utils": "^2.4.6",
