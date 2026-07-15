@@ -1,0 +1,70 @@
+name: Deploy to GitHub Pages
+
+on:
+  # Deploy on every push to main…
+  push:
+    branches: [main]
+  # …and allow manual runs from the Actions tab.
+  workflow_dispatch:
+
+# Grant the token the permissions the Pages deployment needs.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow one concurrent deployment; don't cancel an in-progress one so a
+# published run always finishes.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          # Reads engines.node from package.json.
+          node-version-file: package.json
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        # Project sites serve from /<repo>/, so build with that base path.
+        # For a user/org page or a custom domain, set VITE_BASE to "/".
+        env:
+          VITE_BASE: /${{ github.event.repository.name }}/
+        run: pnpm build
+
+      - name: Add SPA fallback
+        # GitHub Pages has no server-side rewrite, so a hard refresh of a
+        # client-routed deep link 404s. Serving index.html as 404.html fixes it.
+        run: cp dist/index.html dist/404.html
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
