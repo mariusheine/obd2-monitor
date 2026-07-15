@@ -82,6 +82,9 @@ vite-plugin-pwa · Dexie · uPlot · Vitest.
 
 ## Disclaimer
 
+This project was written **entirely with [Claude Code](https://claude.com/claude-code)**,
+Anthropic's agentic coding tool.
+
 This is a hobby diagnostics tool. The Fiat Ducato Mode 22 PIDs are **experimental** and
 unverified until confirmed on the vehicle — do not rely on them for safety-critical decisions.
 Use at your own risk.
