@@ -7,7 +7,10 @@ import { RouterLink } from 'vue-router'
 import { useConnectionStore } from '@/stores/connection'
 
 const conn = useConnectionStore()
-const { status, label, protocol, error, bleSupported } = storeToRefs(conn)
+const { status, label, protocol, error } = storeToRefs(conn)
+// Static capability flags — read directly (they never change after store init).
+const bleSupported = conn.bleSupported
+const bleAvailability = conn.bleAvailability
 
 const { t } = useI18n({ useScope: 'global' })
 
@@ -24,7 +27,7 @@ const statusText = computed(() => t(`status.${status.value}`))
 <template>
   <div class="stack">
     <i18n-t
-      v-if="!bleSupported"
+      v-if="bleAvailability === 'unsupported'"
       keypath="connect.bleUnsupported"
       scope="global"
       tag="div"
@@ -33,7 +36,13 @@ const statusText = computed(() => t(`status.${status.value}`))
       <template #chrome>
         <strong>{{ t('connect.bleUnsupportedChrome') }}</strong>
       </template>
+      <template #flag>
+        <code>edge://flags/#enable-experimental-web-platform-features</code>
+      </template>
     </i18n-t>
+    <div v-else-if="bleAvailability === 'insecure-context'" class="banner warn">
+      {{ t('connect.bleInsecure') }}
+    </div>
 
     <div class="card stack">
       <div class="row">
@@ -78,3 +87,11 @@ const statusText = computed(() => t(`status.${status.value}`))
     </div>
   </div>
 </template>
+
+<style scoped>
+/* The unsupported-BLE banner embeds a long edge://flags URL — let it wrap
+   instead of forcing the mobile layout to scroll sideways. */
+.banner code {
+  word-break: break-all;
+}
+</style>

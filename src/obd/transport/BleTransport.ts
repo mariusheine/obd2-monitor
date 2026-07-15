@@ -21,6 +21,30 @@ const KNOWN_SERVICES: BluetoothServiceUUID[] = [
 const WRITE_CHUNK_SIZE = 20
 
 /**
+ * Why `navigator.bluetooth` might be missing. We distinguish these so the UI can
+ * tell the user what to actually change instead of a generic "unsupported":
+ * - `insecure-context`: served over plain `http://` on a non-localhost origin —
+ *   the whole API is hidden. Fix by using `https://` or `http://localhost`.
+ * - `unsupported`: the browser/OS doesn't expose it. Notably on **Linux**,
+ *   Chrome/Edge only enable Web Bluetooth behind
+ *   `#enable-experimental-web-platform-features`; iOS never supports it.
+ */
+export type BleAvailability = 'available' | 'insecure-context' | 'unsupported'
+
+/**
+ * Whether the page is in a context where Web Bluetooth is *permitted* (secure
+ * context). `localhost`/loopback counts as secure even over `http://`, matching
+ * the browser rule — and keeping jsdom (which reports `isSecureContext=false`)
+ * on the `unsupported` branch in tests.
+ */
+function isSecureBluetoothContext(): boolean {
+  if (typeof window === 'undefined') return true // SSR / tests: don't claim "insecure"
+  if (window.isSecureContext) return true
+  const host = window.location?.hostname ?? ''
+  return host === 'localhost' || host === '127.0.0.1' || host === '::1' || host === '[::1]'
+}
+
+/**
  * Web Bluetooth transport. Browser-only: requires a secure context, a user
  * gesture to call {@link connect}, and Android Chrome / desktop Chrome (BLE only,
  * no iOS). Reassembly of the `>`-terminated stream happens in the ELM327 layer.
@@ -46,13 +70,23 @@ export class BleTransport implements Transport {
     return this._label
   }
 
+  /** Why (or whether) Web Bluetooth can be used here — see {@link BleAvailability}. */
+  static availability(): BleAvailability {
+    if (typeof navigator !== 'undefined' && 'bluetooth' in navigator) return 'available'
+    return isSecureBluetoothContext() ? 'unsupported' : 'insecure-context'
+  }
+
   static isSupported(): boolean {
-    return typeof navigator !== 'undefined' && 'bluetooth' in navigator
+    return BleTransport.availability() === 'available'
   }
 
   async connect(): Promise<void> {
     if (!BleTransport.isSupported()) {
-      throw new TransportError('Web Bluetooth is not supported in this browser (use Android Chrome)')
+      const reason =
+        BleTransport.availability() === 'insecure-context'
+          ? 'Web Bluetooth needs a secure origin — open the app over https:// or on http://localhost'
+          : 'Web Bluetooth is not available in this browser. On Linux desktop, enable edge://flags/#enable-experimental-web-platform-features; on mobile use Android Chrome'
+      throw new TransportError(reason)
     }
     this._state = 'connecting'
     this.intentionalDisconnect = false

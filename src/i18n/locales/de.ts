@@ -28,8 +28,10 @@ const de: typeof en = {
   },
   connect: {
     bleUnsupported:
-      'Web Bluetooth ist in diesem Browser nicht verfügbar. Verwende {chrome} oder Desktop-Chrome/Edge, um einen echten Adapter zu verbinden. Du kannst trotzdem alles mit dem integrierten Simulator ausprobieren.',
+      'Web Bluetooth ist in diesem Browser nicht verfügbar. Verwende {chrome} oder Desktop-Chrome/Edge — unter Linux musst du zusätzlich das Flag „Experimental Web Platform features“ unter {flag} aktivieren und den Browser neu starten. Du kannst trotzdem alles mit dem integrierten Simulator ausprobieren.',
     bleUnsupportedChrome: 'Chrome auf Android',
+    bleInsecure:
+      'Web Bluetooth ist auf unsicheren Ursprüngen blockiert. Öffne die App über https:// oder unter http://localhost — eine einfache http://-LAN-Adresse (z. B. http://192.168.x.x) blendet die API komplett aus. Du kannst trotzdem alles mit dem integrierten Simulator ausprobieren.',
     protocol: 'Protokoll: {name}',
     lost: 'Adapter verloren — verbinde automatisch neu. Eine laufende Aufnahme wird von selbst fortgesetzt.',
     connectBle: 'BLE-Adapter verbinden',

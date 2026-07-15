@@ -39,7 +39,10 @@ export const useConnectionStore = defineStore('connection', () => {
   const protocol = ref<string | null>(null)
   const error = ref<string | null>(null)
   const kind = ref<TransportKind | null>(null)
-  const bleSupported = BleTransport.isSupported()
+  // Capability is fixed for the page's lifetime; compute once. `bleAvailability`
+  // carries *why* BLE is unavailable so the Connect screen can guide the user.
+  const bleAvailability = BleTransport.availability()
+  const bleSupported = bleAvailability === 'available'
 
   const transport = shallowRef<Transport | null>(null)
   const elm = shallowRef<Elm327 | null>(null)
@@ -165,6 +168,7 @@ export const useConnectionStore = defineStore('connection', () => {
     error,
     kind,
     bleSupported,
+    bleAvailability,
     transport,
     elm,
     connect,
