@@ -17,13 +17,13 @@ function seriesOf(...points: [number, number][]): TimeSeries {
 describe('tooltipModelAt', () => {
   it('returns the value and timestamp at the hovered index', () => {
     const s = seriesOf([1000, 10], [2000, 20])
-    const model = tooltipModelAt(s, 1, undefined, 500)
+    const model = tooltipModelAt(s, 1, undefined, 500, 2)
     expect(model).toEqual({ ts: 2000, value: 20, events: [] })
   })
 
   it('returns null when the index has no sample', () => {
     const s = seriesOf([1000, 10])
-    expect(tooltipModelAt(s, 5, undefined, 500)).toBeNull()
+    expect(tooltipModelAt(s, 5, undefined, 500, 2)).toBeNull()
   })
 
   it('includes DTC markers within 2 PID intervals of the hovered sample', () => {
@@ -34,7 +34,7 @@ describe('tooltipModelAt', () => {
       { ts: 2900, kind: 'cleared', code: 'P0401' }, // 900ms away — inside
       { ts: 3200, kind: 'appeared', code: 'P0299' }, // 1200ms away — outside
     ]
-    const model = tooltipModelAt(s, 1, markers, 500)
+    const model = tooltipModelAt(s, 1, markers, 500, 2)
     expect(model?.events.map((e) => e.code)).toEqual(['P2002', 'P0401'])
   })
 
@@ -42,7 +42,7 @@ describe('tooltipModelAt', () => {
     const s = seriesOf([1000, 10], [2000, 20])
     const markers: ChartMarker[] = [{ ts: 3500, kind: 'appeared', code: 'P0299' }]
     // ts=2000, interval=500 -> ±1000 excludes 3500; count=4 -> ±2000 includes it.
-    expect(tooltipModelAt(s, 1, markers, 500)?.events).toHaveLength(0)
+    expect(tooltipModelAt(s, 1, markers, 500, 2)?.events).toHaveLength(0)
     expect(tooltipModelAt(s, 1, markers, 500, 4)?.events.map((e) => e.code)).toEqual(['P0299'])
   })
 })

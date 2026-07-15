@@ -126,7 +126,7 @@ function updateTooltip(u: uPlot): void {
     el.style.display = 'none'
     return
   }
-  const model = tooltipModelAt(props.series, idx, props.markers, props.intervalMs)
+  const model = tooltipModelAt(props.series, idx, props.markers, props.intervalMs, 3)
   if (!model) {
     el.style.display = 'none'
     return

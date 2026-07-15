@@ -34,7 +34,7 @@ export function tooltipModelAt(
   idx: number,
   markers: readonly ChartMarker[] | undefined,
   intervalMs: number,
-  intervalCount = 3,
+  intervalCount: number,
 ): TooltipModel | null {
   const ts = series.ts[idx]
   const value = series.values[idx]
