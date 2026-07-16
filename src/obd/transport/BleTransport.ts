@@ -11,12 +11,47 @@ export interface BleProfileOverride {
   notify?: BluetoothCharacteristicUUID
 }
 
-/** Service UUIDs used by common ELM327 BLE adapters (Vgate, HM-10, Nordic UART). */
+/**
+ * Service UUIDs used by common ELM327 BLE adapters, in probe order:
+ * - `0xfff0` — Vgate iCar-style clones (notify FFF1 / write FFF2)
+ * - `0xffe0` — HM-10-style clones (single FFE1 char, write+notify)
+ * - `0x18f0` — newer Vgate / generic clones (notify 2AF0 / write 2AF1)
+ * - `e7810a71…` — Vgate iCar Pro BLE 4.0 / vLinker "IOS-Vlink" (single
+ *   `bef8d6c9-9c21-4c9e-b632-bd58c1009f9f` char, writeWithoutResponse+notify)
+ * - `6e400001…` — Nordic UART Service (write 6E400002 / notify 6E400003)
+ */
 const KNOWN_SERVICES: BluetoothServiceUUID[] = [
   0xfff0,
   0xffe0,
+  0x18f0,
+  'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
   '6e400001-b5a3-f393-e0a9-e50e24dcca9e',
 ]
+
+/**
+ * The 16-bit vendor UUID range (0xFF00–0xFFFF) that no-name clones squat on.
+ * Requesting the whole range as `optionalServices` lets {@link BleTransport.discover}
+ * enumerate whatever the adapter actually exposes and use any service with a
+ * write+notify pair, instead of guessing UUIDs one at a time. 0xFFFD (FIDO U2F)
+ * is on the Web Bluetooth GATT blocklist and would make `requestDevice` throw,
+ * so it is skipped.
+ */
+const VENDOR_RANGE_SERVICES: BluetoothServiceUUID[] = Array.from(
+  { length: 0x100 },
+  (_, i) => 0xff00 + i,
+).filter((uuid) => uuid !== 0xfffd)
+
+const BASE_UUID_SUFFIX = '-0000-1000-8000-00805f9b34fb'
+
+/** Canonical 128-bit lowercase form, as `BluetoothRemoteGATTService.uuid` reports it. */
+const toUuid128 = (id: BluetoothServiceUUID): string =>
+  typeof id === 'number'
+    ? `${id.toString(16).padStart(8, '0')}${BASE_UUID_SUFFIX}`
+    : String(id).toLowerCase()
+
+/** Compact `0xFFF0` form for 16-bit UUIDs in error messages; full UUID otherwise. */
+const shortUuid = (uuid: string): string =>
+  uuid.startsWith('0000') && uuid.endsWith(BASE_UUID_SUFFIX) ? `0x${uuid.slice(4, 8)}` : uuid
 
 const WRITE_CHUNK_SIZE = 20
 
@@ -101,13 +136,7 @@ export class BleTransport implements Transport {
     this._state = 'connecting'
     this.intentionalDisconnect = false
     try {
-      const optionalServices = [
-        ...(this.override ? [this.override.service] : []),
-        ...KNOWN_SERVICES,
-      ]
-      const device =
-        this.device ??
-        (await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices }))
+      const device = this.device ?? (await this.requestDevice())
       this.device = device
       device.addEventListener('gattserverdisconnected', this.handleGattDisconnected)
 
@@ -124,6 +153,27 @@ export class BleTransport implements Transport {
       this.notifyChar = null
       this._state = 'disconnected'
       throw err
+    }
+  }
+
+  /**
+   * Show the device chooser, requesting the broad vendor-range grant so
+   * {@link discover} can enumerate unknown clone services. If the options are
+   * rejected (e.g. a UUID newly added to the GATT blocklist → SecurityError),
+   * fall back to just the known profiles instead of failing the connect.
+   */
+  private async requestDevice(): Promise<BluetoothDevice> {
+    const known = [...(this.override ? [this.override.service] : []), ...KNOWN_SERVICES]
+    try {
+      return await navigator.bluetooth.requestDevice({
+        acceptAllDevices: true,
+        optionalServices: [...known, ...VENDOR_RANGE_SERVICES],
+      })
+    } catch (err) {
+      const name = err instanceof DOMException ? err.name : ''
+      // Anything else (NotFoundError = user cancelled the chooser) is real.
+      if (name !== 'SecurityError' && name !== 'TypeError') throw err
+      return navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: known })
     }
   }
 
@@ -202,18 +252,35 @@ export class BleTransport implements Transport {
     writeChar: BluetoothRemoteGATTCharacteristic
     notifyChar: BluetoothRemoteGATTCharacteristic
   }> {
-    const serviceUuids = [
+    // Enumerate every service the grant lets us see (known profiles + the
+    // 0xFFxx vendor sweep) rather than probing a fixed list — clones squat on
+    // arbitrary vendor UUIDs, and any service with a write+notify pair will do.
+    let services: BluetoothRemoteGATTService[]
+    try {
+      services = await server.getPrimaryServices()
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'NotFoundError') services = []
+      else throw err // NetworkError etc. — the link dropped; let openGatt retry
+    }
+
+    // Known profiles first (override wins), then whatever the sweep surfaced.
+    const preferred = [
       ...(this.override ? [this.override.service] : []),
       ...KNOWN_SERVICES,
-    ]
-    for (const uuid of serviceUuids) {
-      let service: BluetoothRemoteGATTService
+    ].map(toUuid128)
+    const rank = (s: BluetoothRemoteGATTService): number => {
+      const i = preferred.indexOf(s.uuid)
+      return i === -1 ? preferred.length : i
+    }
+    const ordered = [...services].sort((a, b) => rank(a) - rank(b))
+
+    for (const service of ordered) {
+      let chars: BluetoothRemoteGATTCharacteristic[]
       try {
-        service = await server.getPrimaryService(uuid)
+        chars = await service.getCharacteristics()
       } catch {
         continue
       }
-      const chars = await service.getCharacteristics()
       const notifyChar =
         (this.override?.notify && chars.find((c) => c.uuid === String(this.override?.notify))) ||
         chars.find((c) => c.properties.notify || c.properties.indicate)
@@ -222,7 +289,14 @@ export class BleTransport implements Transport {
         chars.find((c) => c.properties.write || c.properties.writeWithoutResponse)
       if (notifyChar && writeChar) return { writeChar, notifyChar }
     }
-    throw new TransportError('No compatible ELM327 BLE service found on this device')
+
+    const name = this.device?.name ?? 'unnamed device'
+    const seen = services.map((s) => shortUuid(s.uuid))
+    throw new TransportError(
+      seen.length > 0
+        ? `"${name}" exposes ${seen.join(', ')} but none has a usable write+notify characteristic pair`
+        : `No GATT services visible on "${name}" — try pairing it in Android Bluetooth settings first; it may also use a custom service UUID we don't request, or be a Bluetooth Classic adapter (unsupported by Web Bluetooth)`,
+    )
   }
 
   private readonly handleCharacteristicValue = (event: Event): void => {

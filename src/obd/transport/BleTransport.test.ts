@@ -35,8 +35,15 @@ describe('BleTransport.availability', () => {
 /**
  * A minimal fake Web Bluetooth device whose `gatt.connect()` fails `failTimes`
  * before succeeding — the shape of the "Unknown error" flakiness we retry past.
+ * `serviceUuid` is the (128-bit lowercase) UUID its single service reports.
  */
-function fakeDevice({ failTimes }: { failTimes: number }) {
+function fakeDevice({
+  failTimes,
+  serviceUuid = '0000fff0-0000-1000-8000-00805f9b34fb',
+}: {
+  failTimes: number
+  serviceUuid?: string
+}) {
   const notify = {
     uuid: 'notify',
     properties: { notify: true, indicate: false, write: false, writeWithoutResponse: false },
@@ -50,8 +57,8 @@ function fakeDevice({ failTimes }: { failTimes: number }) {
     properties: { notify: false, indicate: false, write: true, writeWithoutResponse: false },
     addEventListener: vi.fn(),
   }
-  const service = { getCharacteristics: vi.fn().mockResolvedValue([notify, write]) }
-  const server = { getPrimaryService: vi.fn().mockResolvedValue(service) }
+  const service = { uuid: serviceUuid, getCharacteristics: vi.fn().mockResolvedValue([notify, write]) }
+  const server = { getPrimaryServices: vi.fn().mockResolvedValue([service]) }
   let attempts = 0
   const gatt = {
     connect: vi.fn().mockImplementation(() => {
@@ -62,7 +69,7 @@ function fakeDevice({ failTimes }: { failTimes: number }) {
     disconnect: vi.fn(),
   }
   const device = { name: 'OBDII', gatt, addEventListener: vi.fn(), removeEventListener: vi.fn() }
-  return { device, gatt }
+  return { device, gatt, server, service }
 }
 
 // The reliability path: don't let a single flaky/half-open GATT connection wedge
@@ -106,5 +113,57 @@ describe('BleTransport.connect', () => {
     // Released after every failed attempt, plus once more in connect()'s catch —
     // the adapter must not be left holding a half-open link.
     expect(gatt.disconnect.mock.calls.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('connects through an unknown vendor service exposing a write+notify pair', async () => {
+    // A clone squatting on a vendor UUID we never listed — the 0xFFxx sweep +
+    // any-usable-service discovery must still find it.
+    const { device } = fakeDevice({
+      failTimes: 0,
+      serviceUuid: '0000ff77-0000-1000-8000-00805f9b34fb',
+    })
+    vi.stubGlobal('navigator', { bluetooth: { requestDevice: vi.fn().mockResolvedValue(device) } })
+
+    const t = new BleTransport()
+    await t.connect()
+
+    expect(t.state).toBe('connected')
+  })
+
+  it('reports the services it saw when none has a usable characteristic pair', async () => {
+    const { device, service } = fakeDevice({ failTimes: 0 })
+    // Notify-only service: discover() must fail and name what it found.
+    service.getCharacteristics.mockResolvedValue([
+      {
+        uuid: 'notify',
+        properties: { notify: true, indicate: false, write: false, writeWithoutResponse: false },
+      },
+    ])
+    vi.stubGlobal('navigator', { bluetooth: { requestDevice: vi.fn().mockResolvedValue(device) } })
+    vi.useFakeTimers()
+
+    const t = new BleTransport()
+    const rejection = expect(t.connect()).rejects.toThrow(/"OBDII" exposes 0xfff0/)
+    await vi.runAllTimersAsync()
+    await rejection
+  })
+
+  it('falls back to the known-profile grant when the broad request is rejected', async () => {
+    // A UUID newly added to the GATT blocklist would make the sweep request
+    // throw SecurityError — connect must retry with the conservative list.
+    const { device } = fakeDevice({ failTimes: 0 })
+    const requestDevice = vi
+      .fn()
+      .mockRejectedValueOnce(new DOMException('blocklisted UUID', 'SecurityError'))
+      .mockResolvedValue(device)
+    vi.stubGlobal('navigator', { bluetooth: { requestDevice } })
+
+    const t = new BleTransport()
+    await t.connect()
+
+    expect(t.state).toBe('connected')
+    expect(requestDevice).toHaveBeenCalledTimes(2)
+    const secondOptions = requestDevice.mock.calls[1]?.[0] as { optionalServices: unknown[] }
+    expect(secondOptions.optionalServices.length).toBeLessThan(10)
   })
 })
