@@ -36,6 +36,24 @@ pnpm dev             # Vite dev server
 Open the dev URL in Chrome. On the Connect screen, either pair a BLE ELM327 adapter or choose
 **"Use simulator"** to run without any hardware.
 
+### Connecting to a real adapter on Linux
+
+Web Bluetooth on Linux is served by **BlueZ**, and many ELM327 clones are **dual-mode** (they
+expose both Bluetooth Classic and BLE). Their advertisement omits the "BR/EDR Not Supported"
+flag, so BlueZ (≤ 5.72) always tries the Classic bearer and never reaches the BLE/GATT side —
+Chrome then reports *"No compatible ELM327 BLE service found"* even though the adapter works
+fine on Android. Forcing the controller **LE-only** fixes it:
+
+```bash
+./scripts/ble-webbt-on.sh    # before connecting: BR/EDR off (LE-only)
+./scripts/ble-webbt-off.sh   # restore Classic devices (speakers, headsets)
+```
+
+The scripts self-elevate with `sudo`. While LE-only mode is active, Bluetooth Classic devices
+won't connect, and it resets on reboot. Also keep the GNOME Settings › Bluetooth panel **closed**
+while connecting — its background scanning interferes. None of this applies on Android, the
+primary target.
+
 ## Commands
 
 | Command | Description |
