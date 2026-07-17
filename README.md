@@ -38,21 +38,28 @@ Open the dev URL in Chrome. On the Connect screen, either pair a BLE ELM327 adap
 
 ### Connecting to a real adapter on Linux
 
-Web Bluetooth on Linux is served by **BlueZ**, and many ELM327 clones are **dual-mode** (they
-expose both Bluetooth Classic and BLE). Their advertisement omits the "BR/EDR Not Supported"
-flag, so BlueZ (≤ 5.72) always tries the Classic bearer and never reaches the BLE/GATT side —
-Chrome then reports *"No compatible ELM327 BLE service found"* even though the adapter works
-fine on Android. Forcing the controller **LE-only** fixes it:
+Web Bluetooth on Linux is served by **BlueZ**, and two Linux-only quirks break it with typical
+ELM327 clones (both work fine on Android, the primary target):
+
+1. **Dual-mode bearer.** The clone exposes both Bluetooth Classic and BLE but advertises without
+   the "BR/EDR Not Supported" flag, so BlueZ (≤ 5.72) always tries the Classic bearer and never
+   reaches the BLE/GATT side — Chrome then reports *"No compatible ELM327 BLE service found"*.
+   Fix: force the controller **LE-only** (BR/EDR off).
+2. **USB autosuspend.** The kernel power-suspends an "idle" USB Bluetooth dongle after ~2 s; a
+   brief gap in a live LE link lets it suspend, the connection drops on the supervision timeout,
+   and Chrome reconnects in a loop. Fix: disable autosuspend on the controller's USB device.
+
+Two helper scripts apply and revert both fixes:
 
 ```bash
-./scripts/ble-webbt-on.sh    # before connecting: BR/EDR off (LE-only)
-./scripts/ble-webbt-off.sh   # restore Classic devices (speakers, headsets)
+./scripts/ble-webbt-on.sh    # before connecting: LE-only + no USB autosuspend
+./scripts/ble-webbt-off.sh   # restore Classic devices (speakers, headsets) + default autosuspend
 ```
 
-The scripts self-elevate with `sudo`. While LE-only mode is active, Bluetooth Classic devices
-won't connect, and it resets on reboot. Also keep the GNOME Settings › Bluetooth panel **closed**
-while connecting — its background scanning interferes. None of this applies on Android, the
-primary target.
+The scripts self-elevate with `sudo` and resolve the Bluetooth controller's USB device
+automatically. While LE-only mode is active, Bluetooth Classic devices won't connect, and both
+fixes reset on reboot (re-run `ble-webbt-on.sh`). Also keep the GNOME Settings › Bluetooth panel
+**closed** while connecting — its background scanning interferes.
 
 ## Commands
 
