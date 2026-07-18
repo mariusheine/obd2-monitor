@@ -111,7 +111,7 @@ export class VehicleSimulator {
     const egtC = regenActive ? 560 + 60 * Math.sin(t) : 180 + engineLoadPct * 3.2
     const kmSinceRegen = ((cyclePos / 600) * 320) | 0
 
-    // Monotonic lifetime counters for a well-used van: every ~600 s cycle ends
+    // Monotonic lifetime counters for a well-used car: every ~600 s cycle ends
     // with a completed regen; a minority are disrupted (and then mostly retried).
     const completed = Math.floor(t / 600)
     const regenOkCount = 128 + completed

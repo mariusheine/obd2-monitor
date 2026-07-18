@@ -1,7 +1,7 @@
 # Cloud sync to your own Nextcloud
 
 OBD-II Monitor can upload recorded session data to a **folder on your own Nextcloud**, so
-several people driving the same van pool their data. Each device enters your Nextcloud
+several people driving the same car pool their data. Each device enters your Nextcloud
 server URL, a username, an **app password**, and a target folder. Once a minute the app
 uploads everything recorded during that minute as **one JSON file**, then removes those
 samples from the device.
@@ -23,7 +23,7 @@ which needs a little one-time setup.
 An app password grants WebDAV access to **all** of that user's files. So don't hand out one
 for your main account — create a throwaway user whose only content is the OBD folder:
 
-1. Nextcloud **Admin settings → Users → New user**, e.g. `van-obd`.
+1. Nextcloud **Admin settings → Users → New user**, e.g. `car-obd`.
 2. Give it a small quota if you like. That's it — the app creates the folder itself.
 
 (You *can* use your own account instead, but then anyone with the app password can read all
@@ -64,17 +64,17 @@ curl -si -X OPTIONS https://YOUR_NEXTCLOUD/remote.php/dav/files/ \
 
 In the app: **Settings → Cloud sync**
 1. **Server URL** — your Nextcloud base address, e.g. `https://cloud.example.com` (no path).
-2. **Username** — `van-obd` (the dedicated user).
+2. **Username** — `car-obd` (the dedicated user).
 3. **App password** — the one from step 2.
 4. **Target folder** — e.g. `obd-sessions` (created automatically; sub-folders like
-   `van/obd` are fine).
+   `car/obd` are fine).
 5. **This device's name** — e.g. "My phone" (stored inside each upload).
 6. Turn **Sync sessions to Nextcloud** on, then tap **Test connection**. Green means the
    credentials work and the folder is ready. A "blocked" error means the webapppassword
    origin (step 3) doesn't match — the fix is on the server, not the app.
 
 Recording starts automatically whenever the app connects to the adapter, and its data
-uploads about once a minute. A file that fails to upload (e.g. no signal in the van) isn't
+uploads about once a minute. A file that fails to upload (e.g. no signal in the car) isn't
 lost — that data simply rolls into the next minute's file when the connection returns.
 
 ---

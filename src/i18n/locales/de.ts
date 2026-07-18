@@ -117,14 +117,14 @@ const de: typeof en = {
   settings: {
     title: 'Cloud-Sync',
     intro:
-      'Lade aufgezeichnete Sitzungen in einen Ordner deiner eigenen Nextcloud hoch, damit alle, die den Van fahren, ihre Daten bündeln. Verwendet einen Nextcloud-Benutzernamen und ein App-Passwort (siehe Anleitung).',
+      'Lade aufgezeichnete Sitzungen in einen Ordner deiner eigenen Nextcloud hoch, damit alle, die das Auto fahren, ihre Daten bündeln. Verwendet einen Nextcloud-Benutzernamen und ein App-Passwort (siehe Anleitung).',
     serverUrl: 'Nextcloud-Server-URL',
     serverUrlPlaceholder: 'https://cloud.example.com',
     serverUrlHelp: 'Die Basisadresse deiner Nextcloud — ohne Pfad.',
     invalidUrl: 'Das sieht nicht nach einer gültigen URL aus.',
     urlOk: 'Server: {host}',
     username: 'Benutzername',
-    usernamePlaceholder: 'z. B. van-obd',
+    usernamePlaceholder: 'z. B. auto-obd',
     appPassword: 'App-Passwort',
     appPasswordPlaceholder: 'xxxxx-xxxxx-xxxxx-xxxxx-xxxxx',
     appPasswordHelp:
@@ -132,7 +132,7 @@ const de: typeof en = {
     folder: 'Zielordner',
     folderPlaceholder: 'obd-sessions',
     folderHelp:
-      'Wird automatisch erstellt, falls nicht vorhanden. Unterordner erlaubt (z. B. van/obd).',
+      'Wird automatisch erstellt, falls nicht vorhanden. Unterordner erlaubt (z. B. auto/obd).',
     deviceLabel: 'Name dieses Geräts',
     deviceLabelPlaceholder: 'z. B. Mein Handy',
     deviceLabelHelp:

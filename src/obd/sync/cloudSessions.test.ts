@@ -34,7 +34,7 @@ const deletePathMock = vi.mocked(deletePath)
 
 const cfg: SyncConfig = {
   baseUrl: 'https://cloud.example.com',
-  username: 'van-obd',
+  username: 'car-obd',
   appPassword: 'pw',
   folder: 'obd-sessions',
 }

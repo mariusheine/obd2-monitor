@@ -22,7 +22,7 @@ const ensureFolderMock = vi.mocked(ensureFolder)
 
 function configure(sync: ReturnType<typeof useSyncStore>): void {
   sync.settings.serverUrl = 'https://cloud.example.com'
-  sync.settings.username = 'van-obd'
+  sync.settings.username = 'car-obd'
   sync.settings.appPassword = 'pw'
   sync.settings.folder = 'obd'
   sync.settings.enabled = true
@@ -195,7 +195,7 @@ describe('sync engine', () => {
     await seed(3)
     const sync = useSyncStore()
     sync.settings.serverUrl = 'https://cloud.example.com'
-    sync.settings.username = 'van-obd'
+    sync.settings.username = 'car-obd'
     sync.settings.appPassword = 'pw'
     sync.settings.folder = 'obd'
     // enabled stays false
@@ -211,7 +211,7 @@ describe('sync engine', () => {
       JSON.stringify({
         enabled: true,
         serverUrl: 'https://cloud.example.com',
-        username: 'van-obd',
+        username: 'car-obd',
         appPassword: 'pw',
         folder: 'obd',
         deviceLabel: '',

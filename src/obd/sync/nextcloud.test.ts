@@ -21,7 +21,7 @@ import {
 
 const cfg: SyncConfig = {
   baseUrl: 'https://cloud.example.com',
-  username: 'van-obd',
+  username: 'car-obd',
   appPassword: 'secret-pw',
   folder: 'obd-sessions',
 }
@@ -75,22 +75,22 @@ describe('normalizeBaseUrl', () => {
 describe('URL + filename building', () => {
   it('builds the authenticated folder and file URLs', () => {
     expect(folderUrl(cfg)).toBe(
-      'https://cloud.example.com/remote.php/dav/files/van-obd/obd-sessions/',
+      'https://cloud.example.com/remote.php/dav/files/car-obd/obd-sessions/',
     )
     expect(davFileUrl(cfg, 'a.json')).toBe(
-      'https://cloud.example.com/remote.php/dav/files/van-obd/obd-sessions/a.json',
+      'https://cloud.example.com/remote.php/dav/files/car-obd/obd-sessions/a.json',
     )
   })
 
   it('encodes each folder path segment but keeps the slashes', () => {
-    expect(folderUrl({ ...cfg, folder: 'van log/obd' })).toBe(
-      'https://cloud.example.com/remote.php/dav/files/van-obd/van%20log/obd/',
+    expect(folderUrl({ ...cfg, folder: 'car log/obd' })).toBe(
+      'https://cloud.example.com/remote.php/dav/files/car-obd/car%20log/obd/',
     )
   })
 
   it('encodes sub-folder segments in a file path but keeps the slashes', () => {
     expect(davFileUrl(cfg, 'my session/part-0000.json')).toBe(
-      'https://cloud.example.com/remote.php/dav/files/van-obd/obd-sessions/my%20session/part-0000.json',
+      'https://cloud.example.com/remote.php/dav/files/car-obd/obd-sessions/my%20session/part-0000.json',
     )
   })
 
@@ -145,23 +145,23 @@ describe('putFile / probe / ensureFolder', () => {
     vi.stubGlobal('fetch', fetchMock)
     await expect(putFile(cfg, 'a.json', 'application/json', '{}')).resolves.toBeUndefined()
     const [url, init] = fetchMock.mock.calls[0]!
-    expect(url).toContain('/remote.php/dav/files/van-obd/obd-sessions/a.json')
+    expect(url).toContain('/remote.php/dav/files/car-obd/obd-sessions/a.json')
     expect(init.method).toBe('PUT')
     expect(init.headers['X-Requested-With']).toBe('XMLHttpRequest')
-    expect(init.headers.Authorization).toBe(`Basic ${btoa('van-obd:secret-pw')}`)
+    expect(init.headers.Authorization).toBe(`Basic ${btoa('car-obd:secret-pw')}`)
   })
 
   it('creates each folder segment and tolerates “already exists” (405)', async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValueOnce(new Response(null, { status: 201 })) // van
+      .mockResolvedValueOnce(new Response(null, { status: 201 })) // car
       .mockResolvedValueOnce(new Response(null, { status: 405 })) // obd (exists)
     vi.stubGlobal('fetch', fetchMock)
-    await expect(ensureFolder({ ...cfg, folder: 'van/obd' })).resolves.toBeUndefined()
+    await expect(ensureFolder({ ...cfg, folder: 'car/obd' })).resolves.toBeUndefined()
     expect(fetchMock).toHaveBeenCalledTimes(2)
     expect(fetchMock.mock.calls[0]![1].method).toBe('MKCOL')
-    expect(fetchMock.mock.calls[0]![0]).toContain('/files/van-obd/van/')
-    expect(fetchMock.mock.calls[1]![0]).toContain('/files/van-obd/van/obd/')
+    expect(fetchMock.mock.calls[0]![0]).toContain('/files/car-obd/car/')
+    expect(fetchMock.mock.calls[1]![0]).toContain('/files/car-obd/car/obd/')
   })
 
   it.each([
@@ -187,7 +187,7 @@ describe('putFile / probe / ensureFolder', () => {
     vi.stubGlobal('fetch', fetchMock)
     await expect(probe(cfg)).resolves.toBeUndefined()
     expect(fetchMock.mock.calls[0]![0]).toBe(
-      'https://cloud.example.com/remote.php/dav/files/van-obd/',
+      'https://cloud.example.com/remote.php/dav/files/car-obd/',
     )
   })
 })
@@ -195,7 +195,7 @@ describe('putFile / probe / ensureFolder', () => {
 const LISTING_XML = `<?xml version="1.0"?>
 <d:multistatus xmlns:d="DAV:" xmlns:nc="http://nextcloud.org/ns">
   <d:response>
-    <d:href>/remote.php/dav/files/van-obd/obd-sessions/</d:href>
+    <d:href>/remote.php/dav/files/car-obd/obd-sessions/</d:href>
     <d:propstat>
       <d:prop>
         <d:resourcetype><d:collection/></d:resourcetype>
@@ -205,7 +205,7 @@ const LISTING_XML = `<?xml version="1.0"?>
     </d:propstat>
   </d:response>
   <d:response>
-    <d:href>/remote.php/dav/files/van-obd/obd-sessions/obd-2026-07-12-14-30-05-abcdef12/</d:href>
+    <d:href>/remote.php/dav/files/car-obd/obd-sessions/obd-2026-07-12-14-30-05-abcdef12/</d:href>
     <d:propstat>
       <d:prop>
         <d:resourcetype><d:collection/></d:resourcetype>
@@ -215,7 +215,7 @@ const LISTING_XML = `<?xml version="1.0"?>
     </d:propstat>
   </d:response>
   <d:response>
-    <d:href>/remote.php/dav/files/van-obd/obd-sessions/obd-2026-07-12-14-31-05-123.json</d:href>
+    <d:href>/remote.php/dav/files/car-obd/obd-sessions/obd-2026-07-12-14-31-05-123.json</d:href>
     <d:propstat>
       <d:prop>
         <d:resourcetype/>
@@ -249,7 +249,7 @@ describe('propfindList / getFile / deletePath', () => {
     vi.stubGlobal('fetch', fetchMock)
     const entries = await propfindList(cfg)
     const [url, init] = fetchMock.mock.calls[0]!
-    expect(url).toBe('https://cloud.example.com/remote.php/dav/files/van-obd/obd-sessions/')
+    expect(url).toBe('https://cloud.example.com/remote.php/dav/files/car-obd/obd-sessions/')
     expect(init.method).toBe('PROPFIND')
     expect(init.headers.Depth).toBe('1')
     // The queried folder (obd-sessions) is filtered out; only its children remain.
@@ -264,7 +264,7 @@ describe('propfindList / getFile / deletePath', () => {
     vi.stubGlobal('fetch', fetchMock)
     await propfindList(cfg, 'obd-2026-07-12-14-30-05-abcdef12')
     expect(fetchMock.mock.calls[0]![0]).toBe(
-      'https://cloud.example.com/remote.php/dav/files/van-obd/obd-sessions/obd-2026-07-12-14-30-05-abcdef12',
+      'https://cloud.example.com/remote.php/dav/files/car-obd/obd-sessions/obd-2026-07-12-14-30-05-abcdef12',
     )
   })
 

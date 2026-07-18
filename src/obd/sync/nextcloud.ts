@@ -17,7 +17,7 @@ export interface SyncConfig {
   username: string
   /** A Nextcloud app password (Settings → Security → Devices & sessions). */
   appPassword: string
-  /** Target folder path within that user's files, e.g. `obd-sessions` or `van/obd`. */
+  /** Target folder path within that user's files, e.g. `obd-sessions` or `car/obd`. */
   folder: string
 }
 
