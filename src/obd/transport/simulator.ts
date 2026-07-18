@@ -43,6 +43,33 @@ export interface SimState {
   regenRetriedCount: number
 }
 
+/** Mode 01 data PIDs this simulated ECU answers (drives the support bitmaps). */
+const SIM_MODE01_PIDS: readonly number[] = [
+  0x04, 0x05, 0x0b, 0x0c, 0x0d, 0x0f, 0x10, 0x11, 0x2f, 0x42, 0x46, 0x5c, 0x78, 0x7c,
+]
+
+/**
+ * Build a 4-byte Mode 01 "supported PIDs" bitmap for the range `base+1 … base+0x20`.
+ * Bit A7 = base+1, …, D0 = base+0x20 (MSB-first). The final bit (base+0x20) is the
+ * standard "next range is supported" marker, set when any PID beyond it is answered.
+ */
+function supportBitmap(base: number): number[] {
+  const bytes = [0, 0, 0, 0]
+  for (let offset = 1; offset <= 0x20; offset++) {
+    const pid = base + offset
+    const isNextRangeMarker = offset === 0x20
+    const supported = isNextRangeMarker
+      ? SIM_MODE01_PIDS.some((p) => p > pid)
+      : SIM_MODE01_PIDS.includes(pid)
+    if (supported) {
+      const bit = offset - 1
+      const byteIdx = bit >> 3
+      bytes[byteIdx] = (bytes[byteIdx] ?? 0) | (0x80 >> (bit & 7))
+    }
+  }
+  return bytes
+}
+
 export class VehicleSimulator {
   private readonly startMs: number
   private lastSoot = 2
@@ -120,6 +147,8 @@ export class VehicleSimulator {
   dataBytes(mode: number, pid: number, now: number = Date.now()): number[] | null {
     const s = this.state(now)
     if (mode === 0x01) {
+      // "Supported PIDs" bitmaps (0x00/0x20/0x40/…) let the discovery scan work.
+      if (pid % 0x20 === 0) return supportBitmap(pid)
       switch (pid) {
         case 0x04:
           return [Math.round((s.engineLoadPct * 255) / 100)]
@@ -143,6 +172,12 @@ export class VehicleSimulator {
           return u16(s.moduleVoltage * 1000)
         case 0x46:
           return [Math.round(s.ambientC + 40)]
+        case 0x78:
+          // EGT bank 1: byte A = sensor-support bitmap (sensor 1 only), then temp.
+          return [0x01, ...u16((s.egtC + 40) * 10)]
+        case 0x7c:
+          // DPF temperature (scale 0.1, offset −40) — tracks exhaust temperature.
+          return u16((s.egtC + 40) * 10)
         default:
           return null
       }

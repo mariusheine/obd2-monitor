@@ -28,6 +28,10 @@ export const DPF_PRESET_IDS: readonly string[] = [
   'std.speed',
   'std.coolantTemp',
   'std.engineLoad',
+  // Standard SAE diesel PIDs — likely supported on the Ducato, real data.
+  'std.egt1',
+  'std.dpfTemp',
+  // Experimental Fiat Mode 22 — null until the real PIDs are found via the scan.
   'fiat.dpf.soot',
   'fiat.dpf.egt',
   'fiat.dpf.regenActive',

@@ -188,4 +188,45 @@ export const STANDARD_PIDS: readonly PidDefinition[] = [
       return a === undefined ? null : a - 40
     },
   },
+  // --- Standardised diesel/DPF PIDs (SAE J1979) ---------------------------------
+  // These are part of the OBD-II standard (not manufacturer-specific), so a diesel
+  // Ducato is likely to answer them — real, verifiable DPF data without guessing.
+  // Whether the ECU actually supports each one is confirmed by the PID scan
+  // (Discovery view); if unsupported the value simply stays null.
+  {
+    id: 'std.egt1',
+    mode: 0x01,
+    pid: 0x78,
+    name: 'Exhaust gas temperature (Bank 1, sensor 1)',
+    shortName: 'EGT',
+    unit: '°C',
+    category: 'temperature',
+    min: 0,
+    max: 1000,
+    source: 'SAE J1979 PID 0x78 — byte A is a sensor-support bitmap; sensor 1 in bytes B,C',
+    decode: (d) => {
+      // Byte A (data[0]) is a bitmap of which of the up-to-4 EGT sensors are
+      // present; the first sensor's temperature is the next two bytes.
+      const b = d[1]
+      const c = d[2]
+      return b === undefined || c === undefined ? null : (b * 256 + c) / 10 - 40
+    },
+  },
+  {
+    id: 'std.dpfTemp',
+    mode: 0x01,
+    pid: 0x7c,
+    name: 'DPF temperature',
+    shortName: 'DPF temp',
+    unit: '°C',
+    category: 'temperature',
+    min: 0,
+    max: 1000,
+    source: 'SAE J1979 PID 0x7C — scale 0.1, offset −40 on bytes A,B (per CSS Electronics J1979 table)',
+    decode: (d) => {
+      const a = d[0]
+      const b = d[1]
+      return a === undefined || b === undefined ? null : (a * 256 + b) / 10 - 40
+    },
+  },
 ]

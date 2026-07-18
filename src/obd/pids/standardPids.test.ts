@@ -38,6 +38,30 @@ describe('standard PID decoders', () => {
   })
 })
 
+describe('standard diesel/DPF PIDs (SAE J1979)', () => {
+  it('decodes EGT bank 1 sensor 1 from bytes B,C (byte A is the support bitmap)', () => {
+    // A=0x01 (sensor 1 supported), B,C = 0x13,0x88 -> (0x1388)/10 - 40 = 500 - 40 = 460 °C
+    expect(pid('std.egt1').decode([0x01, 0x13, 0x88])).toBeCloseTo(460, 5)
+  })
+
+  it('returns null for EGT when the sensor-1 temperature bytes are absent', () => {
+    expect(pid('std.egt1').decode([0x00])).toBeNull()
+    expect(pid('std.egt1').decode([0x01, 0x13])).toBeNull()
+  })
+
+  it('decodes DPF temperature with scale 0.1 and offset -40 from bytes A,B', () => {
+    // 0x1770 = 6000 -> 600.0 - 40 = 560 °C
+    expect(pid('std.dpfTemp').decode([0x17, 0x70])).toBeCloseTo(560, 5)
+    // Minimum encoding 0x0000 -> -40 °C
+    expect(pid('std.dpfTemp').decode([0x00, 0x00])).toBe(-40)
+  })
+
+  it('exposes a source note so the decode origin is auditable', () => {
+    expect(pid('std.egt1').source).toContain('0x78')
+    expect(pid('std.dpfTemp').source).toContain('0x7C')
+  })
+})
+
 describe('experimental Fiat DPF PIDs', () => {
   it('are flagged experimental so the UI can warn', () => {
     expect(pid('fiat.dpf.soot').experimental).toBe(true)
