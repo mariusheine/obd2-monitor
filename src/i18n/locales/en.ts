@@ -18,6 +18,7 @@ const en = {
       sessions: 'Sessions',
       codes: 'Codes',
       dpf: 'DPF',
+      discovery: 'Discover',
       settings: 'Settings',
     },
   },
@@ -326,6 +327,16 @@ const en = {
       short: 'Oil',
       desc: 'Engine oil temperature.',
     },
+    std_egt1: {
+      name: 'Exhaust gas temperature (Bank 1)',
+      short: 'EGT',
+      desc: 'Standard SAE Exhaust Gas Temperature sensor 1; rises sharply during a DPF regeneration.',
+    },
+    std_dpfTemp: {
+      name: 'DPF temperature',
+      short: 'DPF temp',
+      desc: 'Standard SAE diesel particulate filter temperature; high while soot is burning off during a regeneration.',
+    },
     fiat_dpf_soot: {
       name: 'DPF soot load',
       short: 'DPF soot',
@@ -361,6 +372,42 @@ const en = {
       short: 'Regens retried',
       desc: 'Lifetime count of DPF regenerations the ECU restarted after a previous attempt was disrupted.',
     },
+  },
+  discovery: {
+    title: 'Discover PIDs',
+    intro:
+      'Find out what your ECU actually supports. The Fiat DPF PIDs shipped with the app are placeholders — use this to capture your van’s real responses, then share the export so the correct decoders can be wired up.',
+    notConnected: 'Not connected. Go to {link} first (or start the simulator there).',
+    connectLink: 'Connect',
+    supportedTitle: 'Standard PIDs',
+    supportedIntro:
+      'Reads the SAE “supported PIDs” bitmaps to list every standard Mode 01 PID your ECU answers. Diesel/DPF-related ones (EGT, DPF temperature/pressure) are highlighted.',
+    scanStandard: 'Scan supported PIDs',
+    scanning: 'Scanning…',
+    supportedNone: 'The ECU reported no supported PIDs.',
+    unknownPid: 'Non-standard / manufacturer PID',
+    dieselHint:
+      'Highlighted diesel PIDs supported here (e.g. 78 EGT, 7C DPF temp) already decode on the Live dashboard.',
+    probeTitle: 'Probe Mode 22 (Fiat DPF)',
+    probeIntro:
+      'Fiat’s soot load and regen counters live in manufacturer Mode 22 PIDs that have no support bitmap, so we probe a range and keep whatever answers with data. Parked, engine running, is best.',
+    rangeStart: 'From (hex)',
+    rangeEnd: 'To (hex)',
+    probeBtn: 'Probe range',
+    cancel: 'Stop',
+    progressLabel: '{done} / {total} probed',
+    hitsNone: 'No PIDs in that range returned data. Try another range.',
+    rawTitle: 'Raw command',
+    rawIntro:
+      'Send any command and see the raw reply — e.g. 03 (read codes), 0902 (VIN), an AT command like ATSH7E0, or a specific Mode 22 PID.',
+    rawPlaceholder: 'e.g. 2218F0 or ATRV',
+    send: 'Send',
+    rawReply: 'Reply',
+    logTitle: 'Capture log',
+    export: 'Export',
+    clear: 'Clear',
+    badCommand: 'Enter a hex command like 010C or 2218F0, or an AT command.',
+    notConnectedErr: 'No adapter connected.',
   },
   dtcDesc: {
     P2002: 'Diesel Particulate Filter efficiency below threshold (Bank 1)',

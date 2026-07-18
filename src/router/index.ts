@@ -41,6 +41,12 @@ export const router = createRouter({
       meta: { title: 'DPF' },
     },
     {
+      path: '/discovery',
+      name: 'discovery',
+      component: () => import('@/views/DiscoveryView.vue'),
+      meta: { title: 'Discover PIDs' },
+    },
+    {
       path: '/settings',
       name: 'settings',
       component: () => import('@/views/SettingsView.vue'),

@@ -13,6 +13,7 @@ const de: typeof en = {
       sessions: 'Sitzungen',
       codes: 'Codes',
       dpf: 'DPF',
+      discovery: 'Suchen',
       settings: 'Einstellungen',
     },
   },
@@ -325,6 +326,16 @@ const de: typeof en = {
       short: 'Öl',
       desc: 'Motoröltemperatur.',
     },
+    std_egt1: {
+      name: 'Abgastemperatur (Bank 1)',
+      short: 'Abgastemp.',
+      desc: 'Standard-SAE-Abgastemperatur (Sensor 1); steigt während einer DPF-Regeneration stark an.',
+    },
+    std_dpfTemp: {
+      name: 'DPF-Temperatur',
+      short: 'DPF-Temp.',
+      desc: 'Standard-SAE-Dieselpartikelfilter-Temperatur; hoch, während bei einer Regeneration Ruß abgebrannt wird.',
+    },
     fiat_dpf_soot: {
       name: 'DPF-Rußbeladung',
       short: 'DPF-Ruß',
@@ -360,6 +371,42 @@ const de: typeof en = {
       short: 'Regen. wiederh.',
       desc: 'Gesamtzahl der DPF-Regenerationen, die das Steuergerät nach einem abgebrochenen Versuch neu gestartet hat.',
     },
+  },
+  discovery: {
+    title: 'PIDs suchen',
+    intro:
+      'Finde heraus, was dein Steuergerät wirklich unterstützt. Die mitgelieferten Fiat-DPF-PIDs sind Platzhalter — nutze dies, um die echten Antworten deines Fahrzeugs aufzuzeichnen, und teile den Export, damit die korrekten Dekoder eingerichtet werden können.',
+    notConnected: 'Nicht verbunden. Gehe zuerst zu {link} (oder starte dort den Simulator).',
+    connectLink: 'Verbinden',
+    supportedTitle: 'Standard-PIDs',
+    supportedIntro:
+      'Liest die SAE-„unterstützte PIDs“-Bitmaps und listet jede Standard-Mode-01-PID auf, die dein Steuergerät beantwortet. Diesel/DPF-relevante (Abgastemperatur, DPF-Temperatur/-Druck) sind hervorgehoben.',
+    scanStandard: 'Unterstützte PIDs scannen',
+    scanning: 'Scanne…',
+    supportedNone: 'Das Steuergerät meldete keine unterstützten PIDs.',
+    unknownPid: 'Nicht-standardisierte / Hersteller-PID',
+    dieselHint:
+      'Hier unterstützte, hervorgehobene Diesel-PIDs (z. B. 78 Abgastemp., 7C DPF-Temp.) werden bereits im Live-Dashboard dekodiert.',
+    probeTitle: 'Mode 22 abtasten (Fiat DPF)',
+    probeIntro:
+      'Fiats Rußbeladung und Regenerationszähler liegen in Hersteller-Mode-22-PIDs ohne Support-Bitmap, daher tasten wir einen Bereich ab und behalten alles, was mit Daten antwortet. Am besten im Stand bei laufendem Motor.',
+    rangeStart: 'Von (hex)',
+    rangeEnd: 'Bis (hex)',
+    probeBtn: 'Bereich abtasten',
+    cancel: 'Stopp',
+    progressLabel: '{done} / {total} abgetastet',
+    hitsNone: 'Keine PID in diesem Bereich lieferte Daten. Versuche einen anderen Bereich.',
+    rawTitle: 'Rohbefehl',
+    rawIntro:
+      'Sende einen beliebigen Befehl und sieh die Rohantwort — z. B. 03 (Codes lesen), 0902 (VIN), einen AT-Befehl wie ATSH7E0 oder eine bestimmte Mode-22-PID.',
+    rawPlaceholder: 'z. B. 2218F0 oder ATRV',
+    send: 'Senden',
+    rawReply: 'Antwort',
+    logTitle: 'Aufzeichnung',
+    export: 'Exportieren',
+    clear: 'Leeren',
+    badCommand: 'Gib einen Hex-Befehl wie 010C oder 2218F0 oder einen AT-Befehl ein.',
+    notConnectedErr: 'Kein Adapter verbunden.',
   },
   dtcDesc: {
     P2002: 'Dieselpartikelfilter-Wirkungsgrad unter Schwellwert (Bank 1)',

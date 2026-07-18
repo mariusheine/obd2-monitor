@@ -88,6 +88,7 @@ onBeforeUnmount(() => {
       <RouterLink to="/live">{{ t('app.nav.live') }}</RouterLink>
       <RouterLink to="/dtc">{{ t('app.nav.codes') }}</RouterLink>
       <RouterLink to="/dpf">{{ t('app.nav.dpf') }}</RouterLink>
+      <RouterLink to="/discovery">{{ t('app.nav.discovery') }}</RouterLink>
       <RouterLink to="/sessions">{{ t('app.nav.sessions') }}</RouterLink>
       <RouterLink to="/settings">{{ t('app.nav.settings') }}</RouterLink>
     </nav>
