@@ -111,11 +111,11 @@ describe('buildIntervalFile', () => {
 
   it('is self-describing with ISO-string timestamps (one session per file)', () => {
     const parsed = JSON.parse(
-      buildIntervalFile(session, samples, dtcEvents, 'Marius phone', Date.parse('2026-07-12T14:31:00Z')),
+      buildIntervalFile(session, samples, dtcEvents, 'My phone', Date.parse('2026-07-12T14:31:00Z')),
     )
     expect(parsed.uploadedAt).toBe('2026-07-12T14:31:00.000Z')
     expect(parsed.syncSessionId).toBe(session.syncSessionId)
-    expect(parsed.device).toBe('Marius phone')
+    expect(parsed.device).toBe('My phone')
     expect(parsed.session).toMatchObject({
       startedAt: new Date(session.startedAt).toISOString(),
       pidIds: ['std.rpm', 'std.speed'],

@@ -37,7 +37,7 @@ interface SyncSettings {
   appPassword: string
   /** Target folder path within that user's files. */
   folder: string
-  /** Free-text label embedded in each file for human context (e.g. "Marius' phone"). */
+  /** Free-text label embedded in each file for human context (e.g. "My phone"). */
   deviceLabel: string
 }
 

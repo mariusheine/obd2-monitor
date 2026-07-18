@@ -137,7 +137,7 @@ const en = {
     folderPlaceholder: 'obd-sessions',
     folderHelp: 'Created automatically if it doesn’t exist. Sub-folders allowed (e.g. van/obd).',
     deviceLabel: 'This device’s name',
-    deviceLabelPlaceholder: 'e.g. Marius’ phone',
+    deviceLabelPlaceholder: 'e.g. my phone',
     deviceLabelHelp: 'Stored inside each upload so you can tell whose device recorded a drive.',
     enable: 'Sync sessions to Nextcloud',
     test: 'Test connection',

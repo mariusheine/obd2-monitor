@@ -134,7 +134,7 @@ const de: typeof en = {
     folderHelp:
       'Wird automatisch erstellt, falls nicht vorhanden. Unterordner erlaubt (z. B. van/obd).',
     deviceLabel: 'Name dieses Geräts',
-    deviceLabelPlaceholder: 'z. B. Marius’ Handy',
+    deviceLabelPlaceholder: 'z. B. Mein Handy',
     deviceLabelHelp:
       'Wird in jedem Upload gespeichert, damit du erkennst, welches Gerät eine Fahrt aufgezeichnet hat.',
     enable: 'Sitzungen mit Nextcloud synchronisieren',

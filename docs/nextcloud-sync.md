@@ -68,7 +68,7 @@ In the app: **Settings → Cloud sync**
 3. **App password** — the one from step 2.
 4. **Target folder** — e.g. `obd-sessions` (created automatically; sub-folders like
    `van/obd` are fine).
-5. **This device's name** — e.g. "Marius' phone" (stored inside each upload).
+5. **This device's name** — e.g. "My phone" (stored inside each upload).
 6. Turn **Sync sessions to Nextcloud** on, then tap **Test connection**. Green means the
    credentials work and the folder is ready. A "blocked" error means the webapppassword
    origin (step 3) doesn't match — the fix is on the server, not the app.
@@ -103,7 +103,7 @@ self-describing:
   "app": "obd2-monitor",
   "uploadedAt": "2026-07-12T14:31:05.123Z",
   "syncSessionId": "…",
-  "device": "Marius' phone",
+  "device": "My phone",
   "session": {
     "startedAt": "2026-07-12T14:30:05.000Z",
     "endedAt": null,
